@@ -3,6 +3,12 @@
 - Use `/simulate` to have an LLM act as the user and propose the next task based on the current session.
 - Configure simulator model, max turns, and an optional external context path (file or directory).
 - The prompt footer shows the simulation turn/status and, when set, the external context path for clarity.
+- Added or modified Files
+  - `packages/opencode/src/cli/cmd/tui/app.tsx`
+  - `packages/opencode/src/cli/cmd/tui/context/simulate.tsx`
+  - `packages/opencode/src/cli/cmd/tui/util/simulate.ts`
+  - `packages/opencode/src/cli/cmd/tui/component/prompt/index.tsx`
+  - `packages/opencode/src/cli/cmd/tui/component/dialog-simulate.tsx`
 
 ## Running OpenCode in a Docker Sandbox
 
