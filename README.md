@@ -14,8 +14,10 @@
 
 ### 1. Build the image
 ```bash
+curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.5"
+bun install
 cd packages/opencode
-bun build
+bun run build
 docker build -t opencode .
 ```
 
