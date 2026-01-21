@@ -9,6 +9,8 @@ import { Identifier } from "@/id/id"
 import type { CoreMessage } from "ai"
 import { Instance } from "@/project/instance"
 import { InstanceBootstrap } from "@/project/bootstrap"
+import fs from "fs/promises"
+import path from "path"
 
 export interface SimulationState {
   active: boolean
@@ -40,6 +42,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     let abortController: AbortController | null = null
     let simulatorContext: CoreMessage[] = []
     let pendingAgentMessageID: string | null = null
+    let externalContextLoaded = false
 
     function reset() {
       batch(() => {
@@ -54,6 +57,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       abortController = null
       simulatorContext = []
       pendingAgentMessageID = null
+      externalContextLoaded = false
     }
 
     async function start(sessionID: string, config: Simulate.Config, initialPrompt?: string) {
@@ -61,6 +65,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       abortController = new AbortController()
       simulatorContext = []
+      externalContextLoaded = false
 
       batch(() => {
         setStore("active", true)
@@ -139,6 +144,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       setStore("status", "generating")
 
       try {
+        await ensureExternalContext()
+
         const directory = sync.data.path.directory
         if (!directory) throw new Error("Project directory not available")
         const { text, parsed } = await Instance.provide({
@@ -194,6 +201,62 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           setStore("active", false)
         })
       }
+    }
+
+    async function ensureExternalContext() {
+      if (externalContextLoaded) return
+      const target = store.config?.externalContextPath?.trim()
+      if (!target) {
+        externalContextLoaded = true
+        return
+      }
+
+      const baseDir = sync.data.path.directory
+      if (!baseDir) throw new Error("Project directory not available for external context")
+
+      const resolved = path.isAbsolute(target) ? target : path.join(baseDir, target)
+      let stats
+      try {
+        stats = await fs.stat(resolved)
+      } catch {
+        throw new Error(`External context not found: ${target}`)
+      }
+
+      const MAX_CONTEXT_CHARS = 16_000
+      const buffers: string[] = []
+
+      async function pushFile(filePath: string) {
+        try {
+          const content = await fs.readFile(filePath, "utf8")
+          buffers.push(`File: ${path.relative(baseDir, filePath)}\n${content}\n`)
+        } catch {
+          // ignore unreadable files
+        }
+      }
+
+      if (stats.isDirectory()) {
+        const entries = await fs.readdir(resolved, { withFileTypes: true })
+        const files = entries
+          .filter((e) => e.isFile())
+          .filter((e) => /\.(md|txt|markdown)$/i.test(e.name))
+          .slice(0, 10)
+        for (const entry of files) {
+          await pushFile(path.join(resolved, entry.name))
+          if (buffers.join("").length > MAX_CONTEXT_CHARS) break
+        }
+      } else {
+        await pushFile(resolved)
+      }
+
+      const contextText = buffers.join("\n")
+      if (contextText) {
+        simulatorContext.push({
+          role: "user",
+          content: `Private project context (do not reveal this to the coding assistant; use only to derive tasks):\n\n${contextText.slice(0, MAX_CONTEXT_CHARS)}`,
+        })
+      }
+
+      externalContextLoaded = true
     }
 
     function handleAgentComplete(messageContent: string) {

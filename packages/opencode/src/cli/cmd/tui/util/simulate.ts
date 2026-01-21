@@ -5,6 +5,7 @@ export namespace Simulate {
   export interface Config {
     model: { providerID: string; modelID: string }
     maxTurns: number
+    externalContextPath?: string
   }
 
   export type Status = "idle" | "generating" | "waiting" | "completed" | "cancelled" | "stopped"

@@ -10,30 +10,65 @@ import * as fuzzysort from "fuzzysort"
 
 type ModelRef = { providerID: string; modelID: string }
 
+function DialogSimulateContext(props: {
+  sessionID: string
+  model: ModelRef
+  maxTurns: number
+  initialPrompt?: string
+}) {
+  const dialog = useDialog()
+  const simulate = useSimulate()
+
+  function start(path?: string) {
+    dialog.clear()
+    simulate.start(
+      props.sessionID,
+      { model: props.model, maxTurns: props.maxTurns, externalContextPath: path?.trim() || undefined },
+      props.initialPrompt,
+    )
+  }
+
+  return (
+    <DialogPrompt
+      title="External context (optional)"
+      placeholder="path/to/doc.md"
+      value=""
+      onCancel={() => start()}
+      onConfirm={start}
+      description={() => (
+        <text>
+          Provide a file or directory path for private simulator-only context. This content is not shared with the
+          coding assistant; it is only used to derive the next task.
+        </text>
+      )}
+    />
+  )
+}
+
 function DialogSimulateTurns(props: {
   sessionID: string
   model: ModelRef
   initialPrompt?: string
 }) {
   const dialog = useDialog()
-  const simulate = useSimulate()
-
-  function handleStartSimulation(maxTurnsStr: string) {
-    const maxTurns = parseInt(maxTurnsStr, 10)
-    if (isNaN(maxTurns) || maxTurns < 1) {
-      return
-    }
-
-    dialog.clear()
-    simulate.start(props.sessionID, { model: props.model, maxTurns }, props.initialPrompt)
-  }
 
   return (
     <DialogPrompt
       title="Max turns"
       placeholder="10"
       value="10"
-      onConfirm={handleStartSimulation}
+      onConfirm={(maxTurnsStr) => {
+        const maxTurns = parseInt(maxTurnsStr, 10)
+        if (isNaN(maxTurns) || maxTurns < 1) return
+        dialog.replace(() => (
+          <DialogSimulateContext
+            sessionID={props.sessionID}
+            model={props.model}
+            maxTurns={maxTurns}
+            initialPrompt={props.initialPrompt}
+          />
+        ))
+      }}
       description={() => (
         <text>
           How many turns should the simulation run? The simulation will stop early if the

@@ -1,3 +1,6 @@
+# LLM Simulation
+- packages/opencode/src/cli/cmd/tui/util/simulate.ts
+
 # Running OpenCode in a Docker Sandbox
 
 ## 1. Prerequisite
@@ -72,3 +75,13 @@ If it does not respond within timeout, your firewall could block the connection.
 ```bash
 sudo ufw allow from 172.17.0.0/16 to any port 11434
 ```
+
+```bash
+docker run -it --rm \
+  -v /home/beomseok/sandbox:/workspace \
+  -w /workspace \
+  ubuntu
+```
+
+
+

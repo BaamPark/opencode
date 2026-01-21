@@ -1014,6 +1014,11 @@ export function Prompt(props: PromptProps) {
                     {simulate.state.status === "waiting" ? "Waiting for agent..." : ""}
                   </span>
                 </text>
+                <Show when={simulate.state.config?.externalContextPath}>
+                  <text fg={theme.textMuted}>
+                    External context: {simulate.state.config?.externalContextPath}
+                  </text>
+                </Show>
               </box>
               <text fg={theme.text}>
                 esc <span style={{ fg: theme.textMuted }}>cancel simulation</span>
