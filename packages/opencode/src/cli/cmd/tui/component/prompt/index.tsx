@@ -31,6 +31,7 @@ import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
+import { useSimulate } from "../../context/simulate"
 
 export type PromptProps = {
   sessionID?: string
@@ -73,6 +74,7 @@ export function Prompt(props: PromptProps) {
   const renderer = useRenderer()
   const { theme, syntax } = useTheme()
   const kv = useKV()
+  const simulate = useSimulate()
 
   function promptModelWarning() {
     toast.show({
@@ -199,10 +201,16 @@ export function Prompt(props: PromptProps) {
         keybind: "session_interrupt",
         category: "Session",
         hidden: true,
-        enabled: status().type !== "idle",
+        enabled: status().type !== "idle" || simulate.state.active,
         onSelect: (dialog) => {
           if (autocomplete.visible) return
           if (!input.focused) return
+          // Cancel simulation if active
+          if (simulate.state.active) {
+            simulate.cancel()
+            dialog.clear()
+            return
+          }
           // TODO: this should be its own command
           if (store.mode === "shell") {
             setStore("mode", "normal")
@@ -991,7 +999,28 @@ export function Prompt(props: PromptProps) {
           />
         </box>
         <box flexDirection="row" justifyContent="space-between">
-          <Show when={status().type !== "idle"} fallback={<text />}>
+          <Show when={simulate.state.active}>
+            <box flexDirection="row" gap={1} flexGrow={1} justifyContent="space-between">
+              <box flexDirection="row" gap={1}>
+                <box marginLeft={1}>
+                  <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[⋯]</text>}>
+                    <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
+                  </Show>
+                </box>
+                <text fg={theme.accent}>
+                  [Simulation Turn {simulate.state.currentTurn}/{simulate.state.config?.maxTurns ?? "?"}]{" "}
+                  <span style={{ fg: theme.textMuted }}>
+                    {simulate.state.status === "generating" ? "Generating task..." : ""}
+                    {simulate.state.status === "waiting" ? "Waiting for agent..." : ""}
+                  </span>
+                </text>
+              </box>
+              <text fg={theme.text}>
+                esc <span style={{ fg: theme.textMuted }}>cancel simulation</span>
+              </text>
+            </box>
+          </Show>
+          <Show when={status().type !== "idle" && !simulate.state.active} fallback={<text />}>
             <box
               flexDirection="row"
               gap={1}

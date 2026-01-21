@@ -18,6 +18,8 @@ import { DialogHelp } from "./ui/dialog-help"
 import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogAgent } from "@tui/component/dialog-agent"
 import { DialogSessionList } from "@tui/component/dialog-session-list"
+import { DialogSimulate } from "@tui/component/dialog-simulate"
+import { SimulateProvider, useSimulate } from "@tui/context/simulate"
 import { KeybindProvider } from "@tui/context/keybind"
 import { ThemeProvider, useTheme } from "@tui/context/theme"
 import { Home } from "@tui/routes/home"
@@ -135,7 +137,8 @@ export function tui(input: {
                         <SyncProvider>
                           <ThemeProvider mode={mode}>
                             <LocalProvider>
-                              <KeybindProvider>
+                              <SimulateProvider>
+                                <KeybindProvider>
                                 <PromptStashProvider>
                                   <DialogProvider>
                                     <CommandProvider>
@@ -149,7 +152,8 @@ export function tui(input: {
                                     </CommandProvider>
                                   </DialogProvider>
                                 </PromptStashProvider>
-                              </KeybindProvider>
+                                </KeybindProvider>
+                              </SimulateProvider>
                             </LocalProvider>
                           </ThemeProvider>
                         </SyncProvider>
@@ -195,6 +199,7 @@ function App() {
   const sync = useSync()
   const exit = useExit()
   const promptRef = usePromptRef()
+  const simulate = useSimulate()
 
   // Wire up console copy-to-clipboard via opentui's onCopySelection callback
   renderer.console.onCopySelection = async (text: string) => {
@@ -315,6 +320,22 @@ function App() {
           initialPrompt: currentPrompt,
         })
         dialog.clear()
+      },
+    },
+    {
+      title: "Start simulation",
+      value: "session.simulate",
+      category: "Session",
+      slash: {
+        name: "simulate",
+        aliases: ["sim"],
+      },
+      enabled: route.data.type === "session" && !simulate.state.active,
+      onSelect: () => {
+        const data = route.data
+        if (data.type === "session") {
+          dialog.replace(() => <DialogSimulate sessionID={data.sessionID} />)
+        }
       },
     },
     {
