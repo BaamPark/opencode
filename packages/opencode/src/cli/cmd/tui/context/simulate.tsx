@@ -222,7 +222,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         throw new Error(`External context not found: ${target}`)
       }
 
-      const MAX_CONTEXT_CHARS = 16_000
+      const MAX_CONTEXT_CHARS = 128_000
       const buffers: string[] = []
 
       async function pushFile(filePath: string) {
