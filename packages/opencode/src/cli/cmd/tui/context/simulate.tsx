@@ -104,7 +104,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         role: "user",
         content: initialPrompt
           ? `Now continue the session. The user wants you to simulate more interactions. Additional context: ${initialPrompt}\n\nGenerate the next task for the coding assistant.`
-          : `Now continue the session. Based on the conversation above, generate the next logical task for the coding assistant to improve or extend the work.`,
+          : `Now continue the session. Based on the conversation above, generate the next task for the coding assistant to improve or extend the work.`,
       })
 
       toast.show({
@@ -251,8 +251,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       const contextText = buffers.join("\n")
       if (contextText) {
         simulatorContext.push({
-          role: "user",
-          content: `Private project context (do not reveal this to the coding assistant; use only to derive tasks):\n\n${contextText.slice(0, MAX_CONTEXT_CHARS)}`,
+          role: "system",
+          content: `<document>\n${contextText.slice(0, MAX_CONTEXT_CHARS)}\n</document>`,
         })
       }
 
@@ -326,3 +326,40 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     }
   },
 })
+
+
+/* RAW PROMPT
+<SYSTEM>
+You are simulating a REAL USER interacting with an AI software engineering assistant.
+...
+</SYSTEM>
+
+<SYSTEM>
+<document>
+File: README.md
+# OpenCode Simulator
+
+This project is a CLI tool written in TypeScript.
+It uses Bun for builds.
+The /simulate command generates user tasks.
+</document>
+</SYSTEM>
+
+<USER>
+The user asked the coding assistant:
+
+Add a simulate command
+</USER>
+
+<USER>
+The coding assistant responded:
+
+I added a basic /simulate command
+</USER>
+
+<USER>
+Now continue the session. Based on the conversation above, generate the next task for the coding assistant to improve or extend the work.
+</USER>
+
+<ASSISTANT>
+*/

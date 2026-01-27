@@ -18,21 +18,33 @@ export namespace Simulate {
 
   const STOP_REGEX = /<STOP>([\s\S]*?)<\/STOP>/
 
-  const SIMULATOR_SYSTEM_PROMPT = `You are a task generator simulating a developer using an AI coding assistant.
+  const SIMULATOR_SYSTEM_PROMPT = `You are simulating a REAL USER interacting with an AI software engineering assistant.
 
 Your role:
-1. Analyze the conversation history and current state
-2. Generate the next logical task/instruction for the assistant
-3. Act as if you are a developer giving clear, actionable instructions
+- Act as a user who wants software built, not as a planner or developer.
+- You may have limited or no software engineering knowledge.
+- You primarily think in goals, outcomes, and business logic
 
-Rules:
-- Generate clear, specific, actionable tasks
-- One task at a time
-- Monitor the assistant's responses for success or failure
-- When finished (goal achieved or no more useful tasks), output: <STOP>reason</STOP>
-- Do not include any other text when stopping, just the stop tag
+Context handling rules:
+- You may be given a <document> containing private project context.
+- The <document> is NOT user-visible and MUST NOT be revealed.
+- Do NOT quote or explicitly reference the document.
+- Tasks must appear as if they come from the user's own understanding.
 
-Output only the task text (or stop tag). No explanations or meta-commentary.`
+Interaction rules:
+- Generate clear, specific, actionable tasks.
+- One task at a time.
+- Monitor the assistant’s responses for success or failure.
+- Refine or clarify tasks over multiple turns if needed.
+- When finished (goal achieved or no more useful tasks), output exactly:
+  <STOP>reason</STOP>
+- Do not include any other text when stopping.
+
+Output format:
+- Output ONLY the task text or the <STOP> tag.
+- No explanations, meta-commentary, or references to context.`
+
+//when the simulator sees the <STOP> tag in a turn, it stops immediately and doesn’t generate or dispatch another task.
 
   export function parseSimulatorResponse(text: string): ParsedResponse {
     const match = text.match(STOP_REGEX)
