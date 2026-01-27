@@ -24,7 +24,7 @@ docker build -t opencode .
 ### 2. Quick start (no providers mounted)
 ```bash
 docker run -it --rm \
-  -v /home/beomseok/sandbox:/workspace \
+  -v /your/sandbox/path:/workspace \
   -w /workspace \
   opencode
 ```
@@ -34,34 +34,23 @@ docker run -it --rm \
    ```bash
    OLLAMA_CONTEXT_LENGTH=120000 OLLAMA_HOST=0.0.0.0 ollama serve
    ```
-2. Create `/home/beomseok/sandbox/.opencode/opencode.json` with your models:
-   ```json
-   {
-     "$schema": "https://opencode.ai/config.json",
-     "provider": {
-       "ollama": {
-         "npm": "@ai-sdk/openai-compatible",
-         "name": "Ollama (local)",
-         "options": {
-           "baseURL": "http://host.docker.internal:11434/v1"
-         },
-         "models": {
-           "qwen3-coder:30b": { "name": "qwen3-coder:30b" },
-           "gpt-oss:20b":     { "name": "gpt-oss:20b" }
-         }
-       }
-     }
-   }
-   ```
-3. Run OpenCode with host access to Ollama:
+2. Run OpenCode with host access to Ollama:
    ```bash
-   docker run -it --rm \
-     -v /home/beomseok/sandbox:/workspace \
-     -w /workspace \
-     --add-host=host.docker.internal:host-gateway \
-     -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
-     opencode
+  docker run -it --rm \
+    -v /home/beomseok/sandbox/stock_trading:/workspace \
+    -v ./configuration_template:/.opencode \
+    -w /workspace \
+    --add-host=host.docker.internal:host-gateway \
+    -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
+    opencode
    ```
+
+     docker run -it --rm \
+    -v /home/beomseok/sandbox/stock_trading:/workspace \
+    -w /workspace \
+    --add-host=host.docker.internal:host-gateway \
+    -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
+    opencode
 
 ### 4. Troubleshoot connectivity
 - Verify the sandbox can reach Ollama:
@@ -77,3 +66,13 @@ docker run -it --rm \
   ```bash
   sudo ufw allow from 172.17.0.0/16 to any port 11434
   ```
+
+
+
+docker run -it --rm \
+  -v /home/beomseok/sandbox/stock_trading:/workspace \
+  -v /home/beomseok/opencode/configuration_template:/workspace/.opencode \
+  -w /workspace \
+  --add-host=host.docker.internal:host-gateway \
+  -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
+  opencode
