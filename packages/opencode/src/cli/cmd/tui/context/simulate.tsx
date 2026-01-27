@@ -102,9 +102,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       // Add instruction for the simulator
       simulatorContext.push({
         role: "user",
-        content: initialPrompt
-          ? `Now continue the session. The user wants you to simulate more interactions. Additional context: ${initialPrompt}\n\nGenerate the next task for the coding assistant.`
-          : `Now continue the session. Based on the conversation above, generate the next task for the coding assistant to improve or extend the work.`,
+        content: "Now continue the session.\n\nWrite the next message as a real user, in casual, conversational plain text.\n\nFirst, look at the coding assistant’s most recent response.\nCompare it against the project document:\n- if the response does not match the document, is incomplete, or feels confusing, ask the assistant to fix or clarify it\n- if the response matches the document and seems fine, ask for the next thing you want based on the document\n\nJust write what the user would say next.",
       })
 
       toast.show({
