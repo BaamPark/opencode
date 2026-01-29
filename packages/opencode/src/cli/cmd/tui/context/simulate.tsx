@@ -44,9 +44,9 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     let pendingAgentMessageID: string | null = null
     let pendingAssistantContent: string | null = null
     let externalContextLoaded = false
+    let externalContextText = ""
     let seedFirstPrompt = false
     let seedFirstPromptTask: string | null = null
-
     function reset() {
       batch(() => {
         setStore("active", false)
@@ -62,6 +62,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       pendingAgentMessageID = null
       pendingAssistantContent = null
       externalContextLoaded = false
+      externalContextText = ""
       seedFirstPrompt = false
       seedFirstPromptTask = null
     }
@@ -284,13 +285,99 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       const contextText = buffers.join("\n")
       if (contextText) {
+        externalContextText = contextText.slice(0, MAX_CONTEXT_CHARS)
         simulatorContext.push({
           role: "system",
-          content: `<document>\n${contextText.slice(0, MAX_CONTEXT_CHARS)}\n</document>`,
+          content: `<document>\n${externalContextText}\n</document>`,
         })
       }
 
       externalContextLoaded = true
+    }
+
+    function pickAnswerFromContext(questionText: string, options: string[]) {
+      if (options.length === 0) return null
+      const haystack = `${questionText}\n${externalContextText}`.toLowerCase()
+      for (const option of options) {
+        const needle = option.toLowerCase()
+        if (needle && haystack.includes(needle)) return option
+      }
+      return options[0]
+    }
+
+    async function generateCustomAnswer(questionText: string, multiple: boolean) {
+      const config = store.config
+      if (!config) {
+        return [
+          `auto-answer fallback: hasConfig=${Boolean(config)} hasAbort=${Boolean(
+            abortController,
+          )} (no model call)`,
+        ]
+      }
+      let answerText = ""
+      try {
+        const directory = sync.data.path.directory
+        if (!directory) throw new Error("Project directory not available")
+        const signal = abortController?.signal ?? new AbortController().signal
+        answerText = await Instance.provide({
+          directory,
+          init: InstanceBootstrap,
+          fn: () =>
+            Simulate.generateAnswer(config, questionText, externalContextText || null, signal),
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unknown error"
+        toast.show({
+          variant: "error",
+          message: `Simulation auto-answer failed: ${message}`,
+          duration: 5000,
+        })
+        return [`Simulation auto-answer failed: ${message}`]
+      }
+      if (!answerText) return ["answer text is empty"]
+      if (multiple) {
+        const parts = answerText
+          .split(/[\n,]+/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+        return parts.length > 0 ? parts : [answerText.trim()]
+      }
+      return [answerText.trim()]
+    }
+
+    async function autoAnswerQuestion(request: {
+      id: string
+      questions: Array<{
+        question: string
+        options?: Array<{ label: string }>
+        multiple?: boolean
+        custom?: boolean
+      }>
+    }) {
+      if (!store.active || !store.sessionID) return
+      await ensureExternalContext()
+      const answers = await Promise.all(
+        request.questions.map(async (q) => {
+          if (q.custom !== false) {
+            return generateCustomAnswer(q.question, q.multiple === true)
+          }
+        const options = (q.options ?? []).map((o) => o.label).filter((o) => o)
+        const haystack = `${q.question}\n${externalContextText}`.toLowerCase()
+        if (q.multiple) {
+          const picked = options.filter((opt) => haystack.includes(opt.toLowerCase()))
+          if (picked.length > 0) return picked
+          return options.length > 0 ? [options[0]] : q.custom === false ? [] : ["Not specified"]
+        }
+        const picked = pickAnswerFromContext(q.question, options)
+        if (picked) return [picked]
+        return q.custom === false ? [] : ["Not specified"]
+        }),
+      )
+
+      sdk.client.question.reply({
+        requestID: request.id,
+        answers,
+      })
     }
 
     function isSessionIdle() {
@@ -360,6 +447,12 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         if (event.properties.sessionID !== store.sessionID) return
         if (event.properties.status.type !== "idle") return
         flushPendingAssistant()
+        return
+      }
+
+      if (event.type === "question.asked") {
+        if (event.properties.sessionID !== store.sessionID) return
+        void autoAnswerQuestion(event.properties)
         return
       }
 

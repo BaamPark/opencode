@@ -45,6 +45,12 @@ Output format:
 - Output ONLY the task text or the <STOP> tag.
 - No explanations, meta-commentary, or references to context.`
 
+  const SIMULATOR_ANSWER_PROMPT = `You are simulating a REAL USER interacting with an AI software engineering assistant.
+
+Answer the user's question directly, concisely, and in plain text.
+If the question asks for a choice and you have a preference, state it clearly.
+If you have no strong preference, say so in one sentence.`
+
 //when the simulator sees the <STOP> tag in a turn, it stops immediately and doesn’t generate or dispatch another task.
 
   export function parseSimulatorResponse(text: string): ParsedResponse {
@@ -78,6 +84,41 @@ Output format:
     const parsed = parseSimulatorResponse(text)
 
     return { text, parsed }
+  }
+
+  export async function generateAnswer(
+    config: Config,
+    question: string,
+    externalContext: string | null,
+    abortSignal: AbortSignal,
+  ): Promise<string> {
+    const model = await Provider.getModel(config.model.providerID, config.model.modelID)
+    if (!model) {
+      throw new Error(`Model not found: ${config.model.providerID}/${config.model.modelID}`)
+    }
+
+    const language = await Provider.getLanguage(model)
+
+    const messages: CoreMessage[] = []
+    if (externalContext && externalContext.trim()) {
+      messages.push({
+        role: "user",
+        content: `Context:\n${externalContext.trim()}`,
+      })
+    }
+    messages.push({
+      role: "user",
+      content: `Question:\n${question}\n\nWrite the user's answer.`,
+    })
+
+    const result = await streamText({
+      model: language,
+      messages,
+      system: SIMULATOR_ANSWER_PROMPT,
+      abortSignal,
+    })
+
+    return (await result.text).trim()
   }
 
   export function buildSimulatorContext(

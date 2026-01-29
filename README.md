@@ -21,7 +21,7 @@ cd packages/opencode
 bun run build
 docker build -t opencode .
 cd ..
-```
+``
 
 ### 2. Use Ollama inside the sandbox
 Start Ollama on the host (all interfaces):
@@ -71,3 +71,14 @@ OLLAMA_CONTEXT_LENGTH=120000 OLLAMA_HOST=0.0.0.0 ollama serve
   ```bash
   sudo ufw allow from 172.17.0.0/16 to any port 11434
   ```
+
+
+## FAQ
+### 1. How the llm-as-a-user reacts in response to the agent's question?
+1. Agent asks a question → backend emits question.asked.
+2. simulate.tsx listens for that event.
+3. It builds answers:
+  - For each question, it checks options.
+  - If custom answers are allowed, the simulator always chooses “type your own answer”.question text, it picks that.
+  - It calls the LLM (Simulate.generateAnswer) using the question text + external context to produce a custom reply, then submits that as the answer.
+4. It may take a few second to process the generated answer.
