@@ -330,11 +330,21 @@ function App() {
         name: "simulate",
         aliases: ["sim"],
       },
-      enabled: route.data.type === "session" && !simulate.state.active,
-      onSelect: () => {
+      enabled: !simulate.state.active && (route.data.type === "session" || route.data.type === "home"),
+      onSelect: async () => {
         const data = route.data
         if (data.type === "session") {
           dialog.replace(() => <DialogSimulate sessionID={data.sessionID} />)
+          return
+        }
+        if (data.type === "home") {
+          try {
+            const sessionID = await sdk.client.session.create({}).then((x) => x.data!.id)
+            route.navigate({ type: "session", sessionID })
+            dialog.replace(() => <DialogSimulate sessionID={sessionID} />)
+          } catch (err) {
+            toast.error(err)
+          }
         }
       },
     },

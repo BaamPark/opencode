@@ -43,6 +43,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     let simulatorContext: CoreMessage[] = []
     let pendingAgentMessageID: string | null = null
     let externalContextLoaded = false
+    let seedFirstPrompt = false
+    let seedFirstPromptTask: string | null = null
 
     function reset() {
       batch(() => {
@@ -58,6 +60,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       simulatorContext = []
       pendingAgentMessageID = null
       externalContextLoaded = false
+      seedFirstPrompt = false
+      seedFirstPromptTask = null
     }
 
     async function start(sessionID: string, config: Simulate.Config, initialPrompt?: string) {
@@ -79,6 +83,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       // Build context from existing session messages
       const messages = sync.data.message[sessionID] || []
+      seedFirstPrompt = messages.length === 0
       for (const msg of messages) {
         const parts = sync.data.part[msg.id] || []
         const textParts = parts.filter((p: { type: string }) => p.type === "text")
@@ -128,6 +133,36 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }
     }
 
+    async function dispatchTask(task: string) {
+      const trimmedTask = task.trim()
+      if (!trimmedTask) {
+        complete("stopped", "Simulator generated empty task")
+        return
+      }
+
+      simulatorContext.push({
+        role: "assistant",
+        content: trimmedTask,
+      })
+
+      setStore("status", "waiting")
+
+      const messageID = Identifier.ascending("message")
+      pendingAgentMessageID = messageID
+
+      await sdk.client.session.prompt({
+        sessionID: store.sessionID!,
+        messageID,
+        parts: [
+          {
+            id: Identifier.ascending("part"),
+            type: "text",
+            text: trimmedTask,
+          },
+        ],
+      })
+    }
+
     async function runNextTurn() {
       if (!store.active || !store.config || !store.sessionID) return
       if (abortController?.signal.aborted) return
@@ -143,6 +178,13 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       try {
         await ensureExternalContext()
+
+        if (seedFirstPromptTask && turn === 1) {
+          const task = seedFirstPromptTask
+          seedFirstPromptTask = null
+          await dispatchTask(task)
+          return
+        }
 
         const directory = sync.data.path.directory
         if (!directory) throw new Error("Project directory not available")
@@ -164,27 +206,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           return
         }
 
-        simulatorContext.push({
-          role: "assistant",
-          content: text,
-        })
-
-        setStore("status", "waiting")
-
-        const messageID = Identifier.ascending("message")
-        pendingAgentMessageID = messageID
-
-        await sdk.client.session.prompt({
-          sessionID: store.sessionID,
-          messageID,
-          parts: [
-            {
-              id: Identifier.ascending("part"),
-              type: "text",
-              text: parsed.task,
-            },
-          ],
-        })
+        await dispatchTask(parsed.task)
       } catch (err) {
         if (abortController?.signal.aborted) return
         const errorMessage = err instanceof Error ? err.message : "Unknown error"
@@ -223,9 +245,20 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       const MAX_CONTEXT_CHARS = 128_000
       const buffers: string[] = []
 
+      function extractTitle(text: string) {
+        const line = text.split(/\r?\n/).find((l) => l.trim().length > 0)
+        if (!line) return null
+        const title = line.replace(/^#+\s*/, "").trim()
+        return title || null
+      }
+
       async function pushFile(filePath: string) {
         try {
           const content = await fs.readFile(filePath, "utf8")
+          if (seedFirstPrompt && !seedFirstPromptTask) {
+            const title = extractTitle(content)
+            if (title) seedFirstPromptTask = `Develop a ${title}`
+          }
           buffers.push(`File: ${path.relative(baseDir, filePath)}\n${content}\n`)
         } catch {
           // ignore unreadable files
