@@ -42,6 +42,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     let abortController: AbortController | null = null
     let simulatorContext: CoreMessage[] = []
     let pendingAgentMessageID: string | null = null
+    let pendingAssistantContent: string | null = null
     let externalContextLoaded = false
     let seedFirstPrompt = false
     let seedFirstPromptTask: string | null = null
@@ -59,6 +60,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       abortController = null
       simulatorContext = []
       pendingAgentMessageID = null
+      pendingAssistantContent = null
       externalContextLoaded = false
       seedFirstPrompt = false
       seedFirstPromptTask = null
@@ -149,6 +151,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       const messageID = Identifier.ascending("message")
       pendingAgentMessageID = messageID
+      pendingAssistantContent = null
 
       await sdk.client.session.prompt({
         sessionID: store.sessionID!,
@@ -290,6 +293,23 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       externalContextLoaded = true
     }
 
+    function isSessionIdle() {
+      const sessionID = store.sessionID
+      if (!sessionID) return true
+      const status = sync.data.session_status[sessionID]
+      return !status || status.type === "idle"
+    }
+
+    function flushPendingAssistant() {
+      if (!store.active) return
+      if (store.status !== "waiting") return
+      if (!pendingAssistantContent) return
+      if (!isSessionIdle()) return
+      const content = pendingAssistantContent
+      pendingAssistantContent = null
+      handleAgentComplete(content)
+    }
+
     function handleAgentComplete(messageContent: string) {
       if (!store.active) return
 
@@ -316,6 +336,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       abortController = null
       simulatorContext = []
       pendingAgentMessageID = null
+      pendingAssistantContent = null
     }
 
     function cancel() {
@@ -328,12 +349,21 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       abortController = null
       simulatorContext = []
       pendingAgentMessageID = null
+      pendingAssistantContent = null
     }
 
     sdk.event.listen((e) => {
       const event = e.details
-      if (event.type !== "message.updated") return
       if (!store.active) return
+
+      if (event.type === "session.status") {
+        if (event.properties.sessionID !== store.sessionID) return
+        if (event.properties.status.type !== "idle") return
+        flushPendingAssistant()
+        return
+      }
+
+      if (event.type !== "message.updated") return
       if (store.status !== "waiting") return
 
       const msg = event.properties.info
@@ -345,7 +375,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       const textParts = parts.filter((p: { type: string }) => p.type === "text")
       const content = textParts.map((p: { type: string; text?: string }) => p.text || "").join("\n")
 
-      handleAgentComplete(content)
+      pendingAssistantContent = content
+      flushPendingAssistant()
     })
 
     return {
