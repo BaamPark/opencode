@@ -75,6 +75,15 @@ export function Prompt(props: PromptProps) {
   const { theme, syntax } = useTheme()
   const kv = useKV()
   const simulate = useSimulate()
+  const simulateModel = createMemo(() => {
+    const ref = simulate.state.config?.model
+    if (!ref) return undefined
+    const provider = sync.data.provider.find((p) => p.id === ref.providerID)
+    const info = provider?.models?.[ref.modelID]
+    const providerName = provider?.name ?? ref.providerID
+    const modelName = info?.name ?? ref.modelID
+    return `${providerName} · ${modelName}`
+  })
 
   function promptModelWarning() {
     toast.show({
@@ -1014,6 +1023,9 @@ export function Prompt(props: PromptProps) {
                     {simulate.state.status === "waiting" ? "Waiting for agent..." : ""}
                   </span>
                 </text>
+                <Show when={simulateModel()}>
+                  <text fg={theme.textMuted}>Simulator: {simulateModel()}</text>
+                </Show>
                 <Show when={simulate.state.config?.externalContextPath}>
                   <text fg={theme.textMuted}>
                     External context: {simulate.state.config?.externalContextPath}
