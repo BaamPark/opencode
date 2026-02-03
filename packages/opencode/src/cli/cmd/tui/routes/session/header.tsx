@@ -18,12 +18,16 @@ const Title = (props: { session: Accessor<Session> }) => {
   )
 }
 
-const ContextInfo = (props: { context: Accessor<string | undefined>; cost: Accessor<string> }) => {
+const ContextInfo = (props: {
+  total: Accessor<string | undefined>
+  current: Accessor<string | undefined>
+  cost: Accessor<string>
+}) => {
   const { theme } = useTheme()
   return (
-    <Show when={props.context()}>
+    <Show when={props.total()}>
       <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
-        {props.context()} ({props.cost()})
+        Session: {props.total()} tokens ({props.cost()}); Current: {props.current() ?? "0"}
       </text>
     </Show>
   )
@@ -46,17 +50,27 @@ export function Header() {
     }).format(total)
   })
 
-  const context = createMemo(() => {
+  const totalTokens = createMemo(() => {
+    const total = messages().reduce((sum, msg) => {
+      if (msg.role !== "assistant" || !msg.tokens) return sum
+      return (
+        sum +
+        msg.tokens.input +
+        msg.tokens.output +
+        msg.tokens.reasoning +
+        msg.tokens.cache.read +
+        msg.tokens.cache.write
+      )
+    }, 0)
+    return total.toLocaleString()
+  })
+
+  const currentTokens = createMemo(() => {
     const last = messages().findLast((x) => x.role === "assistant" && x.tokens.output > 0) as AssistantMessage
     if (!last) return
     const total =
       last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
-    const model = sync.data.provider.find((x) => x.id === last.providerID)?.models[last.modelID]
-    let result = total.toLocaleString()
-    if (model?.limit.context) {
-      result += "  " + Math.round((total / model.limit.context) * 100) + "%"
-    }
-    return result
+    return total.toLocaleString()
   })
 
   const { theme } = useTheme()
@@ -115,8 +129,7 @@ export function Header() {
               </box>
               <box flexGrow={1} flexShrink={1} />
               <box flexDirection="row" gap={1} flexShrink={0}>
-                <ContextInfo context={context} cost={cost} />
-                <text fg={theme.textMuted}>v{Installation.VERSION}</text>
+                <ContextInfo total={totalTokens} current={currentTokens} cost={cost} />
               </box>
             </box>
           </Match>
@@ -124,8 +137,7 @@ export function Header() {
             <box flexDirection="row" justifyContent="space-between" gap={1}>
               <Title session={session} />
               <box flexDirection="row" gap={1} flexShrink={0}>
-                <ContextInfo context={context} cost={cost} />
-                <text fg={theme.textMuted}>v{Installation.VERSION}</text>
+                <ContextInfo total={totalTokens} current={currentTokens} cost={cost} />
               </box>
             </box>
           </Match>
