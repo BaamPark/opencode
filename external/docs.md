@@ -1,4 +1,4 @@
-# Web Application
+# Stock trading web application
 ## Functional Requirements:
 1. User Management
 - 1.1 Create account: The system shall allow users to create an account using an email address and password.
