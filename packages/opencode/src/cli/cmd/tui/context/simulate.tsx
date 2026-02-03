@@ -11,6 +11,7 @@ import { Instance } from "@/project/instance"
 import { InstanceBootstrap } from "@/project/bootstrap"
 import fs from "fs/promises"
 import path from "path"
+import { formatTranscript } from "../util/transcript"
 
 export interface SimulationState {
   active: boolean
@@ -415,6 +416,9 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         message: `Simulation ${status}: ${reason}`,
         duration: 5000,
       })
+      if (store.sessionID) {
+        void exportSimulationTranscript(store.sessionID)
+      }
       batch(() => {
         setStore("status", status)
         setStore("stopReason", reason)
@@ -437,6 +441,26 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       simulatorContext = []
       pendingAgentMessageID = null
       pendingAssistantContent = null
+    }
+
+    async function exportSimulationTranscript(sessionID: string) {
+      try {
+        await sync.session.sync(sessionID)
+        const sessionData = sync.session.get(sessionID)
+        if (!sessionData) return
+        const sessionMessages = sync.data.message[sessionID] ?? []
+        const transcript = formatTranscript(
+          sessionData,
+          sessionMessages.map((msg) => ({ info: msg, parts: sync.data.part[msg.id] ?? [] })),
+          { thinking: false, toolDetails: false, assistantMetadata: false },
+        )
+        const filename = `session-${sessionData.id.slice(0, 8)}.md`
+        const filepath = path.join(process.cwd(), filename)
+        await Bun.write(filepath, transcript)
+        toast.show({ message: `Session exported to ${filename}`, variant: "success" })
+      } catch {
+        toast.show({ message: "Failed to export session", variant: "error" })
+      }
     }
 
     sdk.event.listen((e) => {
