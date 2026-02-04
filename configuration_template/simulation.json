@@ -1,0 +1,5 @@
+{
+    "models": "gpt-oss:20b",
+    "max_turns": 10,
+    "external_context": "/docs/docs.md"
+}

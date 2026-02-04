@@ -1,4 +1,4 @@
-import { createMemo, createSignal } from "solid-js"
+import { createMemo, createSignal, createEffect, Show } from "solid-js"
 import { useLocal } from "@tui/context/local"
 import { useSync } from "@tui/context/sync"
 import { useSimulate } from "@tui/context/simulate"
@@ -7,6 +7,9 @@ import { DialogSelect } from "@tui/ui/dialog-select"
 import { DialogPrompt } from "@tui/ui/dialog-prompt"
 import { useDialog } from "@tui/ui/dialog"
 import * as fuzzysort from "fuzzysort"
+import fs from "fs/promises"
+import path from "path"
+import { Provider } from "@/provider/provider"
 
 type ModelRef = { providerID: string; modelID: string }
 
@@ -83,8 +86,67 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
   const local = useLocal()
   const sync = useSync()
   const dialog = useDialog()
+  const simulate = useSimulate()
 
   const [query, setQuery] = createSignal("")
+  const [autoState, setAutoState] = createSignal<"pending" | "started" | "fallback">("pending")
+
+  function resolveModelRef(model: string | undefined): ModelRef | undefined {
+    if (!model) return
+    if (model.includes("/")) {
+      const { providerID, modelID } = Provider.parseModel(model)
+      if (!providerID || !modelID) return
+      return { providerID, modelID }
+    }
+    const providers = sync.data.provider
+    const matches = providers.filter((p) => p.models[model])
+    if (matches.length === 1) {
+      return { providerID: matches[0].id, modelID: model }
+    }
+  }
+
+  async function loadSimulationConfig() {
+    const directory = sync.data.path.directory
+    const worktree = sync.data.path.worktree
+    const config = sync.data.path.config
+    const candidates = [
+      directory ? path.join(directory, ".opencode", "simulation.json") : undefined,
+      worktree ? path.join(worktree, ".opencode", "simulation.json") : undefined,
+      config ? path.join(config, "simulation.json") : undefined,
+      "/.opencode/simulation.json",
+    ].filter(Boolean) as string[]
+
+    for (const filepath of candidates) {
+      try {
+        const raw = await fs.readFile(filepath, "utf8")
+        const data = JSON.parse(raw)
+        const modelStr = data.model ?? data.models
+        const maxTurns = Number(data.max_turns ?? data.maxTurns)
+        const externalContext = data.external_context ?? data.externalContext
+        if (!modelStr || !externalContext || !Number.isFinite(maxTurns) || maxTurns < 1) return
+        const model = resolveModelRef(modelStr)
+        if (!model) return
+        return { model, maxTurns, externalContextPath: String(externalContext) }
+      } catch {
+        continue
+      }
+    }
+  }
+
+  createEffect(() => {
+    if (autoState() !== "pending") return
+    if (!sync.ready) return
+    void (async () => {
+      const config = await loadSimulationConfig()
+      if (!config) {
+        setAutoState("fallback")
+        return
+      }
+      setAutoState("started")
+      dialog.clear()
+      simulate.start(props.sessionID, config, props.initialPrompt)
+    })()
+  })
 
   const options = createMemo(() => {
     const q = query()
@@ -139,12 +201,14 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
   })
 
   return (
-    <DialogSelect
-      title="Select simulator model"
-      onFilter={setQuery}
-      skipFilter={true}
-      current={local.model.current()}
-      options={options()}
-    />
+    <Show when={autoState() === "fallback"} fallback={<text>Starting simulation...</text>}>
+      <DialogSelect
+        title="Select simulator model"
+        onFilter={setQuery}
+        skipFilter={true}
+        current={local.model.current()}
+        options={options()}
+      />
+    </Show>
   )
 }

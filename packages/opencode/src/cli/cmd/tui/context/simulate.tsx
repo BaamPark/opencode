@@ -3,6 +3,7 @@ import { batch, createEffect, onCleanup } from "solid-js"
 import { createSimpleContext } from "./helper"
 import { useSDK } from "./sdk"
 import { useSync } from "./sync"
+import { useLocal } from "./local"
 import { useToast } from "../ui/toast"
 import { Simulate } from "../util/simulate"
 import { Identifier } from "@/id/id"
@@ -28,6 +29,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
   init: () => {
     const sdk = useSDK()
     const sync = useSync()
+    const local = useLocal()
     const toast = useToast()
 
     const [store, setStore] = createStore<SimulationState>({
@@ -158,6 +160,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       await sdk.client.session.prompt({
         sessionID: store.sessionID!,
         messageID,
+        model: local.model.current() ?? undefined,
         parts: [
           {
             id: Identifier.ascending("part"),
