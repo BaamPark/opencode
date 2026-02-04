@@ -48,7 +48,8 @@ OLLAMA_CONTEXT_LENGTH=120000 OLLAMA_HOST=0.0.0.0 ollama serve
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/stock_trading:/workspace \
+    -v /home/beomseok/sandbox/test:/workspace \
+    -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
     -v ./external:/docs \
     -w /workspace \

@@ -45,7 +45,7 @@
 
 
 ## System Constraints
-- The frontend, backend, and database shall run locally.
+- The frontend, backend, and database shall each be containerized using Docker.
 - The frontend shall be implemented using Next.js with React and TypeScript and shall run on localhost:3000.
 - The backend shall be implmented using FastAPI and shall run on localhost:8000
 - The backend shall use SQLAlchemy ORM to define and manage database schemas and mappings.
