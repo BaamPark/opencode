@@ -448,13 +448,16 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
     async function exportSimulationTranscript(sessionID: string) {
       try {
-        await sync.session.sync(sessionID)
-        const sessionData = sync.session.get(sessionID)
+        const [sessionResult, messagesResult] = await Promise.all([
+          sdk.client.session.get({ sessionID }, { throwOnError: true }),
+          sdk.client.session.messages({ sessionID }, { throwOnError: true }),
+        ])
+        const sessionData = sessionResult.data
         if (!sessionData) return
-        const sessionMessages = sync.data.message[sessionID] ?? []
+        const sessionMessages = messagesResult.data ?? []
         const transcript = formatTranscript(
           sessionData,
-          sessionMessages.map((msg) => ({ info: msg, parts: sync.data.part[msg.id] ?? [] })),
+          sessionMessages.map((msg) => ({ info: msg.info, parts: msg.parts })),
           { thinking: false, toolDetails: false, assistantMetadata: false },
         )
         const filename = `session-${sessionData.id.slice(0, 8)}.md`

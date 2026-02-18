@@ -189,6 +189,17 @@ export function Session() {
   const toast = useToast()
   const sdk = useSDK()
 
+  async function loadTranscriptData(sessionID: string) {
+    const [sessionResult, messagesResult] = await Promise.all([
+      sdk.client.session.get({ sessionID }, { throwOnError: true }),
+      sdk.client.session.messages({ sessionID }, { throwOnError: true }),
+    ])
+    return {
+      sessionData: sessionResult.data!,
+      sessionMessages: messagesResult.data ?? [],
+    }
+  }
+
   // Handle initial prompt from fork
   createEffect(() => {
     if (route.initialPrompt && prompt) {
@@ -767,12 +778,11 @@ export function Session() {
       },
       onSelect: async (dialog) => {
         try {
-          const sessionData = session()
-          if (!sessionData) return
-          const sessionMessages = messages()
+          const sessionID = route.sessionID
+          const { sessionData, sessionMessages } = await loadTranscriptData(sessionID)
           const transcript = formatTranscript(
             sessionData,
-            sessionMessages.map((msg) => ({ info: msg, parts: sync.data.part[msg.id] ?? [] })),
+            sessionMessages.map((msg) => ({ info: msg.info, parts: msg.parts })),
             {
               thinking: showThinking(),
               toolDetails: showDetails(),
@@ -797,9 +807,8 @@ export function Session() {
       },
       onSelect: async (dialog) => {
         try {
-          const sessionData = session()
-          if (!sessionData) return
-          const sessionMessages = messages()
+          const sessionID = route.sessionID
+          const { sessionData, sessionMessages } = await loadTranscriptData(sessionID)
 
           const defaultFilename = `session-${sessionData.id.slice(0, 8)}.md`
 
@@ -816,7 +825,7 @@ export function Session() {
 
           const transcript = formatTranscript(
             sessionData,
-            sessionMessages.map((msg) => ({ info: msg, parts: sync.data.part[msg.id] ?? [] })),
+            sessionMessages.map((msg) => ({ info: msg.info, parts: msg.parts })),
             {
               thinking: options.thinking,
               toolDetails: options.toolDetails,
