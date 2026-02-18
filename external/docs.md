@@ -23,12 +23,12 @@
 - 4.1 Simulate market data: The system shall provide simulated real-time stock price data for exactly six predefined stock symbols, where prices update continuously based on internal simulation logic.
 
 5. Order Management
-- 4.1 Place orders: The system shall allow users to place buy and sell stock orders.
-- 4.2 Validate resources: The system shall validate sufficient cash for buy orders and sufficient shares for sell orders.
-- 4.3 Execute trades: The system shall execute orders immediately using the current simulated market price.
-- 4.4 Execute order: The system shall execute orders immediately using the current simulated market price.
-- 4.5 Update balances: The system shall update the user’s wallet balance and stock holdings upon successful order execution.
-- 4.6 Record orders: The system shall record each order with symbol, side, quantity, execution price, and timestamp.
+- 5.1 Place orders: The system shall allow users to place buy and sell stock orders.
+- 5.2 Validate resources: The system shall validate sufficient cash for buy orders and sufficient shares for sell orders.
+- 5.3 Execute trades: The system shall execute orders immediately using the current simulated market price.
+- 5.4 Execute order: The system shall execute orders immediately using the current simulated market price.
+- 5.5 Update balances: The system shall update the user’s wallet balance and stock holdings upon successful order execution.
+- 5.6 Record orders: The system shall record each order with symbol, side, quantity, execution price, and timestamp.
 
 6. Portfolio Management
 - 6.1 View holdings: The system shall allow users to view their current stock holdings by symbol and quantity.

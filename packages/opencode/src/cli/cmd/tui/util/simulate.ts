@@ -16,8 +16,6 @@ export namespace Simulate {
     task?: string
   }
 
-  const STOP_REGEX = /<STOP>([\s\S]*?)<\/STOP>/
-
   const SIMULATOR_SYSTEM_PROMPT = `You are simulating a REAL USER interacting with an AI software engineering assistant.
 
 Your role:
@@ -51,13 +49,8 @@ Answer the user's question directly, concisely, and in plain text.
 If the question asks for a choice and you have a preference, state it clearly.
 If you have no strong preference, say so in one sentence.`
 
-//when the simulator sees the <STOP> tag in a turn, it stops immediately and doesn’t generate or dispatch another task.
-
   export function parseSimulatorResponse(text: string): ParsedResponse {
-    const match = text.match(STOP_REGEX)
-    if (match) {
-      return { stopped: true, reason: match[1].trim() }
-    }
+    // STOP-tag termination is disabled: treat all outputs as task text.
     return { stopped: false, task: text.trim() }
   }
 
