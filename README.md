@@ -50,7 +50,8 @@ python3 scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-pa
 5. Set `configuration_template/simulation.json` (no passphrase on disk):
 ```json
 {
-  "models": "gpt-oss:20b",
+  "simulator_model": "gpt-oss:20b",
+  "agent_model": "qwen3-coder:30b",
   "max_turns": 100,
   "external_context": "/docs/req_docs.md.gpg"
 }
@@ -60,7 +61,7 @@ python3 scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-pa
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/prac:/workspace \
+    -v /home/beomseok/sandbox/qwen3_req:/workspace \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
     -v ./external:/docs:ro \

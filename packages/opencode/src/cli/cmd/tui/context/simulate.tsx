@@ -160,7 +160,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       await sdk.client.session.prompt({
         sessionID: store.sessionID!,
         messageID,
-        model: local.model.current() ?? undefined,
+        model: store.config?.agentModel ?? local.model.current() ?? undefined,
         parts: [
           {
             id: Identifier.ascending("part"),

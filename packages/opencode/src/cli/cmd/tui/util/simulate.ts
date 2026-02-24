@@ -4,6 +4,7 @@ import { Provider } from "@/provider/provider"
 export namespace Simulate {
   export interface Config {
     model: { providerID: string; modelID: string }
+    agentModel?: { providerID: string; modelID: string }
     maxTurns: number
     externalContextPath?: string
     externalContextGpgPassphrase?: string

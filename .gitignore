@@ -27,3 +27,4 @@ opencode-dev
 logs/
 *.bun-build
 !configuration_template/opencode.json
+*.pyc

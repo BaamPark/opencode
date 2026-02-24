@@ -107,7 +107,8 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
 
   async function loadSimulationConfig() {
     function parseConfigObject(data: any, passphraseOverride?: string) {
-      const modelStr = data.model ?? data.models
+      const simulatorModelStr = data.simulator_model ?? data.simulatorModel ?? data.model ?? data.models
+      const agentModelStr = data.agent_model ?? data.agentModel
       const maxTurns = Number(data.max_turns ?? data.maxTurns)
       const externalContext = data.external_context ?? data.externalContext
       const gpgPassphrase =
@@ -116,11 +117,13 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
         data.externalContextGpgPassphrase ??
         data.gpg_passphrase ??
         data.gpgPassphrase
-      if (!modelStr || !externalContext || !Number.isFinite(maxTurns) || maxTurns < 1) return
-      const model = resolveModelRef(modelStr)
+      if (!simulatorModelStr || !externalContext || !Number.isFinite(maxTurns) || maxTurns < 1) return
+      const model = resolveModelRef(simulatorModelStr)
       if (!model) return
+      const agentModel = agentModelStr ? resolveModelRef(agentModelStr) : undefined
       return {
         model,
+        agentModel,
         maxTurns,
         externalContextPath: String(externalContext),
         externalContextGpgPassphrase: typeof gpgPassphrase === "string" ? gpgPassphrase : undefined,
