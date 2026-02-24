@@ -6,6 +6,7 @@ export namespace Simulate {
     model: { providerID: string; modelID: string }
     maxTurns: number
     externalContextPath?: string
+    externalContextGpgPassphrase?: string
   }
 
   export type Status = "idle" | "generating" | "waiting" | "completed" | "cancelled" | "stopped"

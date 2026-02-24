@@ -106,6 +106,45 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
   }
 
   async function loadSimulationConfig() {
+    function parseConfigObject(data: any, passphraseOverride?: string) {
+      const modelStr = data.model ?? data.models
+      const maxTurns = Number(data.max_turns ?? data.maxTurns)
+      const externalContext = data.external_context ?? data.externalContext
+      const gpgPassphrase =
+        passphraseOverride ??
+        data.external_context_gpg_passphrase ??
+        data.externalContextGpgPassphrase ??
+        data.gpg_passphrase ??
+        data.gpgPassphrase
+      if (!modelStr || !externalContext || !Number.isFinite(maxTurns) || maxTurns < 1) return
+      const model = resolveModelRef(modelStr)
+      if (!model) return
+      return {
+        model,
+        maxTurns,
+        externalContextPath: String(externalContext),
+        externalContextGpgPassphrase: typeof gpgPassphrase === "string" ? gpgPassphrase : undefined,
+      }
+    }
+
+    const envRaw = process.env["SIMULATION_CONFIG_JSON"] ?? process.env["OPENCODE_SIMULATION_CONFIG_JSON"]
+    const envPassphrase =
+      process.env["SIMULATION_GPG_PASSPHRASE"] ?? process.env["OPENCODE_SIMULATION_GPG_PASSPHRASE"]
+    if (envRaw) {
+      try {
+        const parsed = parseConfigObject(JSON.parse(envRaw), envPassphrase)
+        if (parsed) {
+          delete process.env["SIMULATION_GPG_PASSPHRASE"]
+          delete process.env["OPENCODE_SIMULATION_GPG_PASSPHRASE"]
+          delete process.env["SIMULATION_CONFIG_JSON"]
+          delete process.env["OPENCODE_SIMULATION_CONFIG_JSON"]
+          return parsed
+        }
+      } catch {
+        // fall through to file-based config
+      }
+    }
+
     const directory = sync.data.path.directory
     const worktree = sync.data.path.worktree
     const config = sync.data.path.config
@@ -119,14 +158,8 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
     for (const filepath of candidates) {
       try {
         const raw = await fs.readFile(filepath, "utf8")
-        const data = JSON.parse(raw)
-        const modelStr = data.model ?? data.models
-        const maxTurns = Number(data.max_turns ?? data.maxTurns)
-        const externalContext = data.external_context ?? data.externalContext
-        if (!modelStr || !externalContext || !Number.isFinite(maxTurns) || maxTurns < 1) return
-        const model = resolveModelRef(modelStr)
-        if (!model) return
-        return { model, maxTurns, externalContextPath: String(externalContext) }
+        const parsed = parseConfigObject(JSON.parse(raw))
+        if (parsed) return parsed
       } catch {
         continue
       }

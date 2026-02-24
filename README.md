@@ -26,7 +26,7 @@ cd ..
 ### 2. Use Ollama inside the sandbox
 Start Ollama on the host (all interfaces):
 ```bash
-OLLAMA_CONTEXT_LENGTH=120000 OLLAMA_HOST=0.0.0.0 ollama serve
+OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
 ```
 
 ### 3. Make a documents as external context
@@ -43,17 +43,31 @@ OLLAMA_CONTEXT_LENGTH=120000 OLLAMA_HOST=0.0.0.0 ollama serve
 ...
 ```
   - In this case, "stock trading web application" would be the title. When you run `/simulate`, the llm-as-a-user write the first prompt, "Develop a stock trading web application".
+4. Encrypt markdown files to `.gpg`:
+```bash
+python3 scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-passphrase" --remove-plain
+```
+5. Set `configuration_template/simulation.json` (no passphrase on disk):
+```json
+{
+  "models": "gpt-oss:20b",
+  "max_turns": 100,
+  "external_context": "/docs/req_docs.md.gpg"
+}
+```
 
 
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/test:/workspace \
+    -v /home/beomseok/sandbox/prac:/workspace \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
-    -v ./external:/docs \
+    -v ./external:/docs:ro \
     -w /workspace \
     --add-host=host.docker.internal:host-gateway \
+    -e SIMULATION_CONFIG_JSON="$(jq -c . configuration_template/simulation.json)" \
+    -e SIMULATION_GPG_PASSPHRASE='your-passphrase' \
     -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
     opencode
   ```
@@ -62,11 +76,14 @@ OLLAMA_CONTEXT_LENGTH=120000 OLLAMA_HOST=0.0.0.0 ollama serve
 - Verify the sandbox can reach Ollama:
   ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox:/workspace \
-    -w /workspace \
-    --add-host=host.docker.internal:host-gateway \
-    --entrypoint /bin/sh \
-    opencode -lc 'apk add --no-cache curl >/dev/null && curl -v http://host.docker.internal:11434/'
+  -v /home/beomseok/sandbox:/workspace \
+  -v ./configuration_template:/.opencode \
+  -v ./external:/docs \
+  -w /workspace \
+  --add-host=host.docker.internal:host-gateway \
+  -e SIMULATION_GPG_PASSPHRASE='your-passphrase' \
+  --entrypoint /bin/sh \
+  opencode
   ```
 - If it times out, adjust firewall rules (example):
   ```bash
