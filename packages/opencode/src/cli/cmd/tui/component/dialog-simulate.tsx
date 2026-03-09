@@ -26,22 +26,26 @@ function DialogSimulateContext(props: {
     dialog.clear()
     simulate.start(
       props.sessionID,
-      { model: props.model, maxTurns: props.maxTurns, externalContextPath: path?.trim() || undefined },
+      {
+        model: props.model,
+        maxTurns: props.maxTurns,
+        trackerPath: path?.trim() || undefined,
+        logSystemPrompt: false,
+      },
       props.initialPrompt,
     )
   }
 
   return (
     <DialogPrompt
-      title="External context (optional)"
-      placeholder="path/to/doc.md"
+      title="Tracker path (optional)"
+      placeholder="path/to/req_tracker.md"
       value=""
       onCancel={() => start()}
       onConfirm={start}
       description={() => (
         <text>
-          Provide a file or directory path for private simulator-only context. This content is not shared with the
-          coding assistant; it is only used to derive the next task.
+          Provide a tracker markdown file path. If omitted, defaults to /docs/req_tracker.md.
         </text>
       )}
     />
@@ -110,8 +114,11 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
       const simulatorModelStr = data.simulator_model ?? data.simulatorModel ?? data.model ?? data.models
       const agentModelStr = data.agent_model ?? data.agentModel
       const maxTurns = Number(data.max_turns ?? data.maxTurns)
-      const externalContext = data.external_context ?? data.externalContext
-      if (!simulatorModelStr || !externalContext || !Number.isFinite(maxTurns) || maxTurns < 1) return
+      const trackerPath =
+        data.tracker_path ?? data.trackerPath ?? data.tracker ?? data.external_context ?? data.externalContext
+      const logSystemPromptRaw = data.log_system_prompt ?? data.logSystemPrompt
+      const firstMessageRaw = data.first_message ?? data.firstMessage
+      if (!simulatorModelStr || !trackerPath || !Number.isFinite(maxTurns) || maxTurns < 1) return
       const model = resolveModelRef(simulatorModelStr)
       if (!model) return
       const agentModel = agentModelStr ? resolveModelRef(agentModelStr) : undefined
@@ -119,7 +126,9 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
         model,
         agentModel,
         maxTurns,
-        externalContextPath: String(externalContext),
+        trackerPath: String(trackerPath),
+        logSystemPrompt: logSystemPromptRaw === true,
+        firstMessage: typeof firstMessageRaw === "string" ? firstMessageRaw : undefined,
       }
     }
 

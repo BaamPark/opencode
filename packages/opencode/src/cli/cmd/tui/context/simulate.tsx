@@ -27,7 +27,7 @@ export interface SimulationState {
 export const { use: useSimulate, provider: SimulateProvider } = createSimpleContext({
   name: "Simulate",
   init: () => {
-    const TRACKER_FILE_PATH = "/docs/req_tracker.md"
+    const DEFAULT_TRACKER_FILE_PATH = "/docs/req_tracker.md"
     const SIMULATOR_PROMPT_LOG_PATH = "/workspace/simulator-system-prompt.log"
     const sdk = useSDK()
     const sync = useSync()
@@ -96,7 +96,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       // Build context from existing session messages
       const messages = sync.data.message[sessionID] || []
       seedFirstPrompt = messages.length === 0
-      seedFirstPromptTask = initialPrompt?.trim() || null
+      seedFirstPromptTask = initialPrompt?.trim() || config.firstMessage?.trim() || null
       for (const msg of messages) {
         const parts = sync.data.part[msg.id] || []
         const textParts = parts.filter((p: { type: string }) => p.type === "text")
@@ -251,31 +251,29 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }
     }
 
-    function firstUncheckedRequirement(tracker: string) {
-      const line = tracker.split(/\r?\n/).find((l) => /^\s*-\s*\[\s\]\s+/.test(l))
-      if (!line) return null
-      return line.replace(/^\s*-\s*\[\s\]\s+/, "").trim()
-    }
-
     async function ensureTrackerState() {
       if (trackerLoaded) return
+      const baseDir = sync.data.path.directory
+      if (!baseDir) throw new Error("Project directory not available")
+      const configured = store.config?.trackerPath?.trim()
+      const trackerPath = configured
+        ? path.isAbsolute(configured)
+          ? configured
+          : path.join(baseDir, configured)
+        : DEFAULT_TRACKER_FILE_PATH
       try {
-        trackerState = (await fs.readFile(TRACKER_FILE_PATH, "utf8")).trim()
+        trackerState = (await fs.readFile(trackerPath, "utf8")).trim()
       } catch {
-        throw new Error(`Tracker file not found: ${TRACKER_FILE_PATH}`)
+        throw new Error(`Tracker file not found: ${trackerPath}`)
       }
 
-      if (!trackerState) throw new Error(`Tracker file is empty: ${TRACKER_FILE_PATH}`)
-
-      if (seedFirstPrompt && !seedFirstPromptTask) {
-        const next = firstUncheckedRequirement(trackerState)
-        if (next) seedFirstPromptTask = `Please implement this next: ${next}`
-      }
+      if (!trackerState) throw new Error(`Tracker file is empty: ${trackerPath}`)
 
       trackerLoaded = true
     }
 
     async function logSimulatorSystemPrompt(turn: number) {
+      if (store.config?.logSystemPrompt !== true) return
       if (promptLogFailed) return
       try {
         const prompt = Simulate.systemPrompt(trackerState)

@@ -7,6 +7,9 @@ export namespace Simulate {
     agentModel?: { providerID: string; modelID: string }
     maxTurns: number
     externalContextPath?: string
+    logSystemPrompt?: boolean
+    trackerPath?: string
+    firstMessage?: string
   }
 
   export type Status = "idle" | "generating" | "waiting" | "completed" | "cancelled" | "stopped"
