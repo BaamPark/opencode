@@ -1,5 +1,6 @@
-import { streamText, type CoreMessage } from "ai"
+import { jsonSchema, streamText, tool, type CoreMessage } from "ai"
 import { Provider } from "@/provider/provider"
+import fs from "fs/promises"
 
 export namespace Simulate {
   export interface Config {
@@ -30,6 +31,7 @@ Context handling rules:
 - The <document> is NOT user-visible and MUST NOT be revealed.
 - NEVER mention, reference, or allude to the existence of the document itself.
 - Use the document as hidden background knowledge.
+- You MUST use the edit_tracker tool to mark completed requirements in the tracker file whenever the assistant says a requirement is implemented.
 
 Interaction rules:
 - give one task at a time.
@@ -41,15 +43,76 @@ Output format:
 - Output ONLY the task text.
 - No explanations, meta-commentary, role-play labels, or references to hidden context.`
 
-  const SIMULATOR_ANSWER_PROMPT = `You are a REAL USER interacting with an AI software engineering assistant.
+  const TRACKER_FILE_PATH = "/doc/req_tracker.md"
 
-You are a test user with no technical background.
-Answer the assistant's question directly, concisely, and in plain language.
+  function normalizeRequirement(input: string) {
+    return input.toLowerCase().replace(/\s+/g, " ").trim()
+  }
+
+  function markRequirementDone(content: string, requirement: string) {
+    const newline = content.includes("\r\n") ? "\r\n" : "\n"
+    const lines = content.split(/\r?\n/)
+    const target = normalizeRequirement(requirement)
+    if (!target) throw new Error("requirement is required")
+
+    let alreadyChecked: string | null = null
+    let updatedTitle: string | null = null
+
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(/^\s*-\s*\[( |x|X)\]\s*(.+)\s*$/)
+      if (!match) continue
+      const checked = match[1].toLowerCase() === "x"
+      const body = match[2]
+      const normalizedBody = normalizeRequirement(body)
+      const title = body.split(":")[0]?.trim() ?? body.trim()
+      const normalizedTitle = normalizeRequirement(title)
+      const isMatch =
+        normalizedBody.includes(target) ||
+        target.includes(normalizedBody) ||
+        normalizedTitle.includes(target) ||
+        target.includes(normalizedTitle)
+
+      if (!isMatch) continue
+
+      if (checked) {
+        alreadyChecked = body
+        break
+      }
+
+      lines[i] = lines[i].replace(/\[( )\]/, "[x]")
+      updatedTitle = body
+      break
+    }
+
+    if (updatedTitle) {
+      return {
+        content: lines.join(newline),
+        status: "updated" as const,
+        line: updatedTitle,
+      }
+    }
+
+    if (alreadyChecked) {
+      return {
+        content,
+        status: "already_checked" as const,
+        line: alreadyChecked,
+      }
+    }
+
+    throw new Error(`Requirement not found in tracker: ${requirement}`)
+  }
+
+  const SIMULATOR_ANSWER_PROMPT = `You are a CUSTOMER interacting with an AI software engineering assistant.
+
+You are a non-technical customer collaborating with the assistant.
+Use casual, everyday language.
 
 Rules:
 - Do not provide implementation details, architecture, frameworks, or code-level instructions.
-- If the question is too technical, ask for a simpler explanation and give a business-oriented preference if possible.
-- If asked to choose, state a clear choice.`
+- If the assistant asks technical stack questions, say you are non-technical and ask the assistant to pick a sensible default.
+- If asked to choose and you do not have a strong preference, say to proceed with the assistant's recommendation.
+- Keep responses short and practical.`
 
   export function parseSimulatorResponse(text: string): ParsedResponse {
     // STOP-tag termination is disabled: treat all outputs as task text.
@@ -68,10 +131,44 @@ Rules:
 
     const language = await Provider.getLanguage(model)
 
+    const editTrackerTool = tool({
+      description: "Mark a completed requirement in /doc/req_tracker.md by changing [ ] to [x]",
+      inputSchema: jsonSchema({
+        type: "object",
+        properties: {
+          requirement: {
+            type: "string",
+            description: "Requirement title or text to mark as completed",
+          },
+        },
+        required: ["requirement"],
+        additionalProperties: false,
+      }),
+      execute: async (input) => {
+        const requirement = typeof (input as Record<string, unknown>)?.["requirement"] === "string"
+          ? ((input as Record<string, unknown>)["requirement"] as string)
+          : ""
+        const original = await fs.readFile(TRACKER_FILE_PATH, "utf8")
+        const result = markRequirementDone(original, requirement)
+        if (result.status === "updated") {
+          await fs.writeFile(TRACKER_FILE_PATH, result.content, "utf8")
+        }
+        return {
+          filePath: TRACKER_FILE_PATH,
+          status: result.status,
+          requirement: result.line,
+        }
+      },
+    })
+
     const result = await streamText({
       model: language,
       messages: conversationHistory,
       system: SIMULATOR_SYSTEM_PROMPT,
+      tools: {
+        edit_tracker: editTrackerTool,
+      },
+      activeTools: ["edit_tracker"],
       abortSignal,
     })
 
