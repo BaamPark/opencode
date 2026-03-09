@@ -1,0 +1,29 @@
+- [ ] Create account: The system shall allow users to create an account using an email address and password.
+- [ ] Authenticate user: The system shall allow users to log in and log out using valid credentials.
+- [ ] Secure passwords: The system shall securely hash and store user passwords.
+- [ ] Prevent duplicates: The system shall prevent registration with duplicate email addresses.
+- [ ] Provision wallet: The system shall automatically create exactly one cash wallet for each user upon user account creation, with an initial balance of 1,000 units.
+- [ ] Deposit funds: The system shall allow users to deposit cash into their wallet, using the payment service.
+- [ ] Retrieve balance: The system shall allow users to view their current wallet balance.
+- [ ] Prevent overdraft: The system shall prevent wallet balances from becoming negative.
+- [ ] Record wallet transactions: The system shall record each wallet balance change with an amount and timestamp.
+- [ ] Simulate payment: The system shall provide a payment service that simulates successful and failed payment transactions without processing real monetary funds.
+- [ ] Enter payment details: The system shall allow users to enter a credit card number and CVC for payment simulation.
+- [ ] Validate payment method: The system shall validate payment requests using Luhn’s algorithm, where a 16-digit card number that passes the Luhn checksum is considered a valid fake card.
+- [ ] Record transaction: The system shall record each simulated payment transaction with status and amount.
+- [ ] Simulate market data: The system shall provide simulated real-time stock price data for exactly six predefined stock symbols, where prices update continuously based on internal simulation logic.
+- [ ] Place orders: The system shall allow users to place buy and sell stock orders.
+- [ ] Validate resources: The system shall validate sufficient cash for buy orders and sufficient shares for sell orders.
+- [ ] Execute trades: The system shall execute orders immediately using the current simulated market price.
+- [ ] Execute order: The system shall execute orders immediately using the current simulated market price.
+- [ ] Update balances: The system shall update the user’s wallet balance and stock holdings upon successful order execution.
+- [ ] Record orders: The system shall record each order with symbol, side, quantity, execution price, and timestamp.
+- [ ] View holdings: The system shall allow users to view their current stock holdings by symbol and quantity.
+- [ ] Portfolio valuation: The system shall calculate the current portfolio value using simulated real-time market prices.
+- [ ] Position breakdown: The system shall display each holding’s current price and total value.
+- [ ] Login page: The system shall provide a login page with email and password input fields, and upon successful authentication, redirect the user to the dashboard page.
+- [ ] Registration page: The system shall provide a registration page that allows users to create an account using an email address and password.
+- [ ] Dashboard page: The system shall provide a dashboard page that displays the user’s wallet balance and current portfolio summary.
+- [ ] Deposit page: The system shall provide a deposit page that allows users to enter payment details and deposit funds into their wallet using the payment service.
+- [ ] Trading page: The system shall provide a trading page that displays simulated real-time stock prices and allows users to place buy and sell orders for supported symbols.
+- [ ] Portfolio page: The system shall provide a portfolio page that displays the user’s current holdings, position values, and total portfolio value.

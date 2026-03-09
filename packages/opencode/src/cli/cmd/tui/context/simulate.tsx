@@ -27,6 +27,8 @@ export interface SimulationState {
 export const { use: useSimulate, provider: SimulateProvider } = createSimpleContext({
   name: "Simulate",
   init: () => {
+    const TRACKER_FILE_PATH = "/docs/req_tracker.md"
+    const SIMULATOR_PROMPT_LOG_PATH = "/workspace/simulator-system-prompt.log"
     const sdk = useSDK()
     const sync = useSync()
     const local = useLocal()
@@ -46,8 +48,9 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     let simulatorContext: CoreMessage[] = []
     let pendingAgentMessageID: string | null = null
     let pendingAssistantContent: string | null = null
-    let externalContextLoaded = false
-    let externalContextText = ""
+    let trackerLoaded = false
+    let trackerState = ""
+    let promptLogFailed = false
     let seedFirstPrompt = false
     let seedFirstPromptTask: string | null = null
     function reset() {
@@ -64,8 +67,9 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       simulatorContext = []
       pendingAgentMessageID = null
       pendingAssistantContent = null
-      externalContextLoaded = false
-      externalContextText = ""
+      trackerLoaded = false
+      trackerState = ""
+      promptLogFailed = false
       seedFirstPrompt = false
       seedFirstPromptTask = null
     }
@@ -75,7 +79,9 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       abortController = new AbortController()
       simulatorContext = []
-      externalContextLoaded = false
+      trackerLoaded = false
+      trackerState = ""
+      promptLogFailed = false
 
       batch(() => {
         setStore("active", true)
@@ -90,6 +96,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       // Build context from existing session messages
       const messages = sync.data.message[sessionID] || []
       seedFirstPrompt = messages.length === 0
+      seedFirstPromptTask = initialPrompt?.trim() || null
       for (const msg of messages) {
         const parts = sync.data.part[msg.id] || []
         const textParts = parts.filter((p: { type: string }) => p.type === "text")
@@ -113,7 +120,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       // Add instruction for the simulator
       simulatorContext.push({
         role: "user",
-        content: "Now continue the session.\n\nWrite the next message as a real user, in casual, conversational plain text.\n\nFirst, look at the coding assistant’s most recent response.\nCompare it against the project document:\n- if the response does not match the document, is incomplete, or feels confusing, ask the assistant to fix or clarify it\n- if the response matches the document and seems fine, ask for the next thing you want based on the document\n\nJust write what the user would say next.",
+        content:
+          "Now continue the session.\n\nWrite the next message as a real user, in casual, conversational plain text.\n\nFirst, look at the coding assistant's most recent response.\nCompare it against the current requirement tracker:\n- if the response does not satisfy the current item, is incomplete, or feels confusing, ask the assistant to fix or clarify it\n- if the response seems complete, move to the next unfinished requirement\n\nReturn the next user message using the required output format.",
       })
 
       toast.show({
@@ -185,7 +193,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       setStore("status", "generating")
 
       try {
-        await ensureExternalContext()
+        await ensureTrackerState()
 
         if (seedFirstPromptTask && turn === 1) {
           const task = seedFirstPromptTask
@@ -196,10 +204,11 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
         const directory = sync.data.path.directory
         if (!directory) throw new Error("Project directory not available")
+        await logSimulatorSystemPrompt(turn)
         const { text, parsed } = await Instance.provide({
           directory,
           init: InstanceBootstrap,
-          fn: () => Simulate.generateTask(store.config!, simulatorContext, abortController!.signal),
+          fn: () => Simulate.generateTask(store.config!, simulatorContext, abortController!.signal, trackerState),
         })
 
         if (abortController?.signal.aborted) return
@@ -208,6 +217,17 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           complete("stopped", parsed.reason || "Simulator decided to stop")
           return
         }
+
+        if (parsed.reason) {
+          complete("stopped", parsed.reason)
+          return
+        }
+
+        if (!parsed.tracker || parsed.tracker.trim() === "") {
+          complete("stopped", "Simulator response did not include updated tracker")
+          return
+        }
+        trackerState = parsed.tracker.trim()
 
         if (!parsed.task || parsed.task.trim() === "") {
           complete("stopped", "Simulator generated empty task")
@@ -231,78 +251,57 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }
     }
 
-    async function ensureExternalContext() {
-      if (externalContextLoaded) return
-      const target = store.config?.externalContextPath?.trim()
-      if (!target) {
-        externalContextLoaded = true
-        return
-      }
+    function firstUncheckedRequirement(tracker: string) {
+      const line = tracker.split(/\r?\n/).find((l) => /^\s*-\s*\[\s\]\s+/.test(l))
+      if (!line) return null
+      return line.replace(/^\s*-\s*\[\s\]\s+/, "").trim()
+    }
 
-      const baseDir = sync.data.path.directory
-      if (!baseDir) throw new Error("Project directory not available for external context")
-
-      const resolved = path.isAbsolute(target) ? target : path.join(baseDir, target)
-      let stats
+    async function ensureTrackerState() {
+      if (trackerLoaded) return
       try {
-        stats = await fs.stat(resolved)
+        trackerState = (await fs.readFile(TRACKER_FILE_PATH, "utf8")).trim()
       } catch {
-        throw new Error(`External context not found: ${target}`)
+        throw new Error(`Tracker file not found: ${TRACKER_FILE_PATH}`)
       }
 
-      const MAX_CONTEXT_CHARS = 128_000
-      const buffers: string[] = []
+      if (!trackerState) throw new Error(`Tracker file is empty: ${TRACKER_FILE_PATH}`)
 
-      function extractTitle(text: string) {
-        const line = text.split(/\r?\n/).find((l) => l.trim().length > 0)
-        if (!line) return null
-        const title = line.replace(/^#+\s*/, "").trim()
-        return title || null
+      if (seedFirstPrompt && !seedFirstPromptTask) {
+        const next = firstUncheckedRequirement(trackerState)
+        if (next) seedFirstPromptTask = `Please implement this next: ${next}`
       }
 
-      async function pushFile(filePath: string, required = false) {
-        try {
-          const content = await fs.readFile(filePath, "utf8")
-          if (seedFirstPrompt && !seedFirstPromptTask) {
-            const title = extractTitle(content)
-            if (title) seedFirstPromptTask = `Develop a ${title}`
-          }
-          buffers.push(`File: ${path.relative(baseDir, filePath)}\n${content}\n`)
-        } catch (error) {
-          if (required) throw error
-          // ignore unreadable files for directory mode
-        }
-      }
+      trackerLoaded = true
+    }
 
-      if (stats.isDirectory()) {
-        const entries = await fs.readdir(resolved, { withFileTypes: true })
-        const files = entries
-          .filter((e) => e.isFile())
-          .filter((e) => /\.(md|txt|markdown)$/i.test(e.name))
-          .slice(0, 10)
-        for (const entry of files) {
-          await pushFile(path.join(resolved, entry.name))
-          if (buffers.join("").length > MAX_CONTEXT_CHARS) break
-        }
-      } else {
-        await pushFile(resolved, true)
-      }
-
-      const contextText = buffers.join("\n")
-      if (contextText) {
-        externalContextText = contextText.slice(0, MAX_CONTEXT_CHARS)
-        simulatorContext.push({
-          role: "system",
-          content: `<document>\n${externalContextText}\n</document>`,
+    async function logSimulatorSystemPrompt(turn: number) {
+      if (promptLogFailed) return
+      try {
+        const prompt = Simulate.systemPrompt(trackerState)
+        const record = [
+          "============================================================",
+          `time: ${new Date().toISOString()}`,
+          `turn: ${turn}`,
+          `session: ${store.sessionID ?? "unknown"}`,
+          "",
+          prompt,
+          "",
+        ].join("\n")
+        await fs.appendFile(SIMULATOR_PROMPT_LOG_PATH, record, "utf8")
+      } catch {
+        promptLogFailed = true
+        toast.show({
+          variant: "warning",
+          message: `Failed to write simulator prompt log: ${SIMULATOR_PROMPT_LOG_PATH}`,
+          duration: 4000,
         })
       }
-
-      externalContextLoaded = true
     }
 
     function pickAnswerFromContext(questionText: string, options: string[]) {
       if (options.length === 0) return null
-      const haystack = `${questionText}\n${externalContextText}`.toLowerCase()
+      const haystack = `${questionText}\n${trackerState}`.toLowerCase()
       for (const option of options) {
         const needle = option.toLowerCase()
         if (needle && haystack.includes(needle)) return option
@@ -328,7 +327,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           directory,
           init: InstanceBootstrap,
           fn: () =>
-            Simulate.generateAnswer(config, questionText, externalContextText || null, signal),
+            Simulate.generateAnswer(config, questionText, trackerState || null, signal),
         })
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error"
@@ -360,14 +359,14 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }>
     }) {
       if (!store.active || !store.sessionID) return
-      await ensureExternalContext()
+      await ensureTrackerState()
       const answers = await Promise.all(
         request.questions.map(async (q) => {
           if (q.custom !== false) {
             return generateCustomAnswer(q.question, q.multiple === true)
           }
         const options = (q.options ?? []).map((o) => o.label).filter((o) => o)
-        const haystack = `${q.question}\n${externalContextText}`.toLowerCase()
+        const haystack = `${q.question}\n${trackerState}`.toLowerCase()
         if (q.multiple) {
           const picked = options.filter((opt) => haystack.includes(opt.toLowerCase()))
           if (picked.length > 0) return picked

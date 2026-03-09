@@ -1,6 +1,5 @@
-import { jsonSchema, streamText, tool, type CoreMessage } from "ai"
+import { streamText, type CoreMessage } from "ai"
 import { Provider } from "@/provider/provider"
-import fs from "fs/promises"
 
 export namespace Simulate {
   export interface Config {
@@ -16,9 +15,10 @@ export namespace Simulate {
     stopped: boolean
     reason?: string
     task?: string
+    tracker?: string
   }
 
-  const SIMULATOR_SYSTEM_PROMPT = `You are a CUSTOMER collaborating with an AI software engineering assistant to implement a software based your functional requirements.
+  const SIMULATOR_SYSTEM_PROMPT = `You are a CUSTOMER collaborating with an AI software engineering assistant to implement software based on your functional requirements.
 
 Your role:
 - Act like a non-technical customer, who does not have any technical background in software development.
@@ -27,81 +27,24 @@ Your role:
 - Do not ask for implementation details, architecture, frameworks, APIs, endpoints, payloads, status codes, or code-level instructions.
 
 Context handling rules:
-- You may be given a <document> containing the software's requirement.
-- The <document> is NOT user-visible and MUST NOT be revealed.
-- NEVER mention, reference, or allude to the existence of the document itself.
-- Use the document as hidden background knowledge.
-- You MUST use the edit_tracker tool to mark completed requirements in the tracker file whenever the assistant says a requirement is implemented.
+- You will be given the current requirement tracker.
+- Use only the tracker as source of truth.
 
 Interaction rules:
 - give one task at a time.
 - Prefer "Does this meet X?" / "Please complete missing part Y."
-- If the assistant says a requirement is implemented, trust it and move on to the next unmet requirement.
+- If the assistant says a requirement is implemented, trust it and mark that requirement as completed in the updated tracker.
 - When introducing a new requirement, phrase it in a casual and informal tone with somewhat ambiguous customer language instead of formal spec wording.
 
 Output format:
-- Output ONLY the task text.
-- No explanations, meta-commentary, role-play labels, or references to hidden context.`
-
-  const TRACKER_FILE_PATH = "/doc/req_tracker.md"
-
-  function normalizeRequirement(input: string) {
-    return input.toLowerCase().replace(/\s+/g, " ").trim()
-  }
-
-  function markRequirementDone(content: string, requirement: string) {
-    const newline = content.includes("\r\n") ? "\r\n" : "\n"
-    const lines = content.split(/\r?\n/)
-    const target = normalizeRequirement(requirement)
-    if (!target) throw new Error("requirement is required")
-
-    let alreadyChecked: string | null = null
-    let updatedTitle: string | null = null
-
-    for (let i = 0; i < lines.length; i++) {
-      const match = lines[i].match(/^\s*-\s*\[( |x|X)\]\s*(.+)\s*$/)
-      if (!match) continue
-      const checked = match[1].toLowerCase() === "x"
-      const body = match[2]
-      const normalizedBody = normalizeRequirement(body)
-      const title = body.split(":")[0]?.trim() ?? body.trim()
-      const normalizedTitle = normalizeRequirement(title)
-      const isMatch =
-        normalizedBody.includes(target) ||
-        target.includes(normalizedBody) ||
-        normalizedTitle.includes(target) ||
-        target.includes(normalizedTitle)
-
-      if (!isMatch) continue
-
-      if (checked) {
-        alreadyChecked = body
-        break
-      }
-
-      lines[i] = lines[i].replace(/\[( )\]/, "[x]")
-      updatedTitle = body
-      break
-    }
-
-    if (updatedTitle) {
-      return {
-        content: lines.join(newline),
-        status: "updated" as const,
-        line: updatedTitle,
-      }
-    }
-
-    if (alreadyChecked) {
-      return {
-        content,
-        status: "already_checked" as const,
-        line: alreadyChecked,
-      }
-    }
-
-    throw new Error(`Requirement not found in tracker: ${requirement}`)
-  }
+- You MUST output in exactly this structure:
+\`\`\`md
+<full updated tracker markdown with checklist lines>
+\`\`\`
+<single user message to send to assistant>
+- The user message must be plain text after the md block.
+- The user message must sound like a real customer and MUST NOT mention markdown, trackers, checkboxes, or internal formatting.
+- Prefer phrasing like: "It seems like X is ready. Now please implement Y."`
 
   const SIMULATOR_ANSWER_PROMPT = `You are a CUSTOMER interacting with an AI software engineering assistant.
 
@@ -115,14 +58,51 @@ Rules:
 - Keep responses short and practical.`
 
   export function parseSimulatorResponse(text: string): ParsedResponse {
-    // STOP-tag termination is disabled: treat all outputs as task text.
-    return { stopped: false, task: text.trim() }
+    const trackerMatch = text.match(/```(?:md|markdown)?\s*([\s\S]*?)```/i)
+    if (!trackerMatch) {
+      return {
+        stopped: false,
+        reason: "Missing tracker markdown block in simulator response",
+      }
+    }
+
+    const tracker = trackerMatch[1].trim()
+    if (!tracker) {
+      return {
+        stopped: false,
+        reason: "Tracker markdown block is empty",
+      }
+    }
+
+    const task = text.slice((trackerMatch.index ?? 0) + trackerMatch[0].length).trim()
+    if (!task) {
+      return {
+        stopped: false,
+        reason: "Missing task text after tracker block",
+      }
+    }
+
+    return { stopped: false, task, tracker }
+  }
+
+  function buildSystemPrompt(tracker: string) {
+    return `${SIMULATOR_SYSTEM_PROMPT}
+
+Current requirement tracker:
+\`\`\`md
+${tracker}
+\`\`\``
+  }
+
+  export function systemPrompt(tracker: string) {
+    return buildSystemPrompt(tracker)
   }
 
   export async function generateTask(
     config: Config,
     conversationHistory: CoreMessage[],
     abortSignal: AbortSignal,
+    tracker: string,
   ): Promise<{ text: string; parsed: ParsedResponse }> {
     const model = await Provider.getModel(config.model.providerID, config.model.modelID)
     if (!model) {
@@ -131,44 +111,10 @@ Rules:
 
     const language = await Provider.getLanguage(model)
 
-    const editTrackerTool = tool({
-      description: "Mark a completed requirement in /doc/req_tracker.md by changing [ ] to [x]",
-      inputSchema: jsonSchema({
-        type: "object",
-        properties: {
-          requirement: {
-            type: "string",
-            description: "Requirement title or text to mark as completed",
-          },
-        },
-        required: ["requirement"],
-        additionalProperties: false,
-      }),
-      execute: async (input) => {
-        const requirement = typeof (input as Record<string, unknown>)?.["requirement"] === "string"
-          ? ((input as Record<string, unknown>)["requirement"] as string)
-          : ""
-        const original = await fs.readFile(TRACKER_FILE_PATH, "utf8")
-        const result = markRequirementDone(original, requirement)
-        if (result.status === "updated") {
-          await fs.writeFile(TRACKER_FILE_PATH, result.content, "utf8")
-        }
-        return {
-          filePath: TRACKER_FILE_PATH,
-          status: result.status,
-          requirement: result.line,
-        }
-      },
-    })
-
     const result = await streamText({
       model: language,
       messages: conversationHistory,
-      system: SIMULATOR_SYSTEM_PROMPT,
-      tools: {
-        edit_tracker: editTrackerTool,
-      },
-      activeTools: ["edit_tracker"],
+      system: buildSystemPrompt(tracker),
       abortSignal,
     })
 
