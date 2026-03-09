@@ -43,21 +43,13 @@ OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
 ...
 ```
   - In this case, "stock trading web application" would be the title. When you run `/simulate`, the llm-as-a-user write the first prompt, "Develop a stock trading web application".
-4. Encrypt markdown files to `.gpg`:
-```bash
-# To encrypt
-python scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-passphrase" --remove-plain
-
-# To decrypt
-python scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-passphrase" --reverse
-```
-5. Set `configuration_template/simulation.json` (no passphrase on disk):
+4. Set `configuration_template/simulation.json`:
 ```json
 {
   "simulator_model": "gpt-oss:20b",
   "agent_model": "qwen3-coder:30b",
   "max_turns": 100,
-  "external_context": "/docs/req_docs.md.gpg"
+  "external_context": "/docs/req_docs.md"
 }
 ```
 
@@ -65,14 +57,13 @@ python scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-pas
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/qwen3_b3:/workspace \
+    -v /home/beomseok/sandbox/qwen3_b4:/workspace \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
     -v ./external:/docs:ro \
     -w /workspace \
     --add-host=host.docker.internal:host-gateway \
     -e SIMULATION_CONFIG_JSON="$(jq -c . configuration_template/simulation.json)" \
-    -e SIMULATION_GPG_PASSPHRASE='your-passphrase' \
     -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
     opencode
   ```
@@ -86,7 +77,6 @@ python scripts/encrypt_md_with_gpg.py --source ./external --passphrase "your-pas
   -v ./external:/docs \
   -w /workspace \
   --add-host=host.docker.internal:host-gateway \
-  -e SIMULATION_GPG_PASSPHRASE='your-passphrase' \
   --entrypoint /bin/sh \
   opencode
   ```

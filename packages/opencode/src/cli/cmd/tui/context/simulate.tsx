@@ -260,58 +260,9 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         return title || null
       }
 
-      async function readExternalContextFile(filePath: string) {
-        if (!filePath.toLowerCase().endsWith(".gpg")) {
-          return await fs.readFile(filePath, "utf8")
-        }
-
-        const passphrase = store.config?.externalContextGpgPassphrase
-        if (!passphrase) {
-          throw new Error(
-            `Missing GPG passphrase for encrypted external context: ${path.relative(baseDir, filePath)}`,
-          )
-        }
-
-        const process = Bun.spawn({
-          cmd: [
-            "gpg",
-            "--batch",
-            "--yes",
-            "--decrypt",
-            "--pinentry-mode",
-            "loopback",
-            "--passphrase-fd",
-            "0",
-            filePath,
-          ],
-          stdin: "pipe",
-          stdout: "pipe",
-          stderr: "pipe",
-        })
-
-        if (!process.stdin) {
-          throw new Error("Failed to open stdin for gpg passphrase")
-        }
-        process.stdin.write(`${passphrase}\n`)
-        process.stdin.end()
-
-        const [exitCode, output, errorOutput] = await Promise.all([
-          process.exited,
-          new Response(process.stdout).text(),
-          new Response(process.stderr).text(),
-        ])
-
-        if (exitCode !== 0) {
-          const details = errorOutput.trim() || `gpg exited with code ${exitCode}`
-          throw new Error(`Failed to decrypt external context file ${path.relative(baseDir, filePath)}: ${details}`)
-        }
-
-        return output
-      }
-
       async function pushFile(filePath: string, required = false) {
         try {
-          const content = await readExternalContextFile(filePath)
+          const content = await fs.readFile(filePath, "utf8")
           if (seedFirstPrompt && !seedFirstPromptTask) {
             const title = extractTitle(content)
             if (title) seedFirstPromptTask = `Develop a ${title}`
@@ -327,7 +278,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         const entries = await fs.readdir(resolved, { withFileTypes: true })
         const files = entries
           .filter((e) => e.isFile())
-          .filter((e) => /\.(md|txt|markdown)(\.gpg)?$/i.test(e.name))
+          .filter((e) => /\.(md|txt|markdown)$/i.test(e.name))
           .slice(0, 10)
         for (const entry of files) {
           await pushFile(path.join(resolved, entry.name))
