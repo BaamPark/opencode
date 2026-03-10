@@ -185,6 +185,21 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       return checklistLines.every((line) => /^\s*-\s*\[(?:x|X)\]\s+/.test(line))
     }
 
+    async function appendSimulatorLogRecord(record: string) {
+      if (store.config?.logSystemPrompt !== true) return
+      if (promptLogFailed) return
+      try {
+        await fs.appendFile(SIMULATOR_PROMPT_LOG_PATH, record, "utf8")
+      } catch {
+        promptLogFailed = true
+        toast.show({
+          variant: "warning",
+          message: `Failed to write simulator prompt log: ${SIMULATOR_PROMPT_LOG_PATH}`,
+          duration: 4000,
+        })
+      }
+    }
+
     async function runNextTurn() {
       if (!store.active || !store.config || !store.sessionID) return
       if (abortController?.signal.aborted) return
@@ -216,41 +231,60 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         const directory = sync.data.path.directory
         if (!directory) throw new Error("Project directory not available")
         await logSimulatorSystemPrompt(turn)
-        const { text, parsed } = await Instance.provide({
-          directory,
-          init: InstanceBootstrap,
-          fn: () => Simulate.generateTask(store.config!, simulatorContext, abortController!.signal, trackerState),
-        })
+        const maxFormatRetry = Math.max(0, Math.floor(store.config.formatRetryCount ?? 1))
+        let lastParsed: Simulate.ParsedResponse = { stopped: false }
+        for (let attempt = 1; attempt <= maxFormatRetry + 1; attempt++) {
+          const { text, parsed } = await Instance.provide({
+            directory,
+            init: InstanceBootstrap,
+            fn: () => Simulate.generateTask(store.config!, simulatorContext, abortController!.signal, trackerState),
+          })
+          lastParsed = parsed
+          if (!Simulate.isMissingTrackerBlock(parsed.reason)) break
+          const record = [
+            "============================================================",
+            `time: ${new Date().toISOString()}`,
+            `turn: ${turn}`,
+            `session: ${store.sessionID ?? "unknown"}`,
+            `event: simulator format retry (${attempt}/${maxFormatRetry + 1})`,
+            `reason: ${parsed.reason}`,
+            "",
+            "simulator_output:",
+            text,
+            "",
+          ].join("\n")
+          await appendSimulatorLogRecord(record)
+        }
 
         if (abortController?.signal.aborted) return
 
-        if (parsed.stopped) {
-          complete("stopped", parsed.reason || "Simulator decided to stop")
+        if (lastParsed.stopped) {
+          complete("stopped", lastParsed.reason || "Simulator decided to stop")
           return
         }
 
-        if (parsed.reason) {
-          complete("stopped", parsed.reason)
+        if (lastParsed.reason) {
+          complete("stopped", lastParsed.reason)
           return
         }
 
-        if (!parsed.tracker || parsed.tracker.trim() === "") {
+        if (!lastParsed.tracker || lastParsed.tracker.trim() === "") {
           complete("stopped", "Simulator response did not include updated tracker")
           return
         }
-        trackerState = parsed.tracker.trim()
+        trackerState = lastParsed.tracker.trim()
 
         if (store.config.terminateCondition?.allPassed === true && isTrackerAllPassed(trackerState)) {
           complete("completed", "All tracker items are completed")
           return
         }
 
-        if (!parsed.task || parsed.task.trim() === "") {
+        if (!lastParsed.task || lastParsed.task.trim() === "") {
           complete("stopped", "Simulator generated empty task")
           return
         }
 
-        await dispatchTask(parsed.task)
+        await dispatchTask(lastParsed.task)
       } catch (err) {
         if (abortController?.signal.aborted) return
         const errorMessage = err instanceof Error ? err.message : "Unknown error"
@@ -289,28 +323,17 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     }
 
     async function logSimulatorSystemPrompt(turn: number) {
-      if (store.config?.logSystemPrompt !== true) return
-      if (promptLogFailed) return
-      try {
-        const prompt = Simulate.systemPrompt(trackerState)
-        const record = [
-          "============================================================",
-          `time: ${new Date().toISOString()}`,
-          `turn: ${turn}`,
-          `session: ${store.sessionID ?? "unknown"}`,
-          "",
-          prompt,
-          "",
-        ].join("\n")
-        await fs.appendFile(SIMULATOR_PROMPT_LOG_PATH, record, "utf8")
-      } catch {
-        promptLogFailed = true
-        toast.show({
-          variant: "warning",
-          message: `Failed to write simulator prompt log: ${SIMULATOR_PROMPT_LOG_PATH}`,
-          duration: 4000,
-        })
-      }
+      const prompt = Simulate.systemPrompt(trackerState)
+      const record = [
+        "============================================================",
+        `time: ${new Date().toISOString()}`,
+        `turn: ${turn}`,
+        `session: ${store.sessionID ?? "unknown"}`,
+        "",
+        prompt,
+        "",
+      ].join("\n")
+      await appendSimulatorLogRecord(record)
     }
 
     function pickAnswerFromContext(questionText: string, options: string[]) {

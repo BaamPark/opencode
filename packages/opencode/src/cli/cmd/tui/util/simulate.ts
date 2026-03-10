@@ -13,6 +13,7 @@ export namespace Simulate {
     terminateCondition?: {
       allPassed?: boolean
     }
+    formatRetryCount?: number
   }
 
   export type Status = "idle" | "generating" | "waiting" | "completed" | "cancelled" | "stopped"
@@ -49,8 +50,8 @@ Output format:
 \`\`\`
 <single user message to send to assistant>
 - The user message must be plain text after the md block.
-- The user message must sound like a real customer and MUST NOT mention markdown, trackers, checkboxes, or internal formatting.
-- Prefer phrasing like: "It seems like X is ready. Now please implement Y."`
+- The user message must sound like a nont-techincal customer and MUST NOT mention markdown, trackers, checkboxes, or internal formatting.
+- Vary sentence openings and phrasing naturally across turns.`
 
   const SIMULATOR_ANSWER_PROMPT = `You are a CUSTOMER interacting with an AI software engineering assistant.
 
@@ -89,6 +90,10 @@ Rules:
     }
 
     return { stopped: false, task, tracker }
+  }
+
+  export function isMissingTrackerBlock(reason?: string) {
+    return reason === "Missing tracker markdown block in simulator response"
   }
 
   function buildSystemPrompt(tracker: string) {

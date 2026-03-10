@@ -4,6 +4,7 @@
     "max_turns": 20,
     "external_context": "/docs/req_tracker.md",
     "log_system_prompt": false,
+    "format_retry_count": 1,
     "first_message": "Develop a stock trading web application",
     "terminate_condition": {
         "all_passed": false

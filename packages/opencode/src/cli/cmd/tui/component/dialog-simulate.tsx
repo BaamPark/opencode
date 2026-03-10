@@ -120,10 +120,16 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
       const firstMessageRaw = data.first_message ?? data.firstMessage
       const terminateConditionRaw = data.terminate_condition ?? data.terminateCondition
       const allPassedRaw = terminateConditionRaw?.all_passed ?? terminateConditionRaw?.allPassed
+      const formatRetryCountRaw = data.format_retry_count ?? data.formatRetryCount
       if (!simulatorModelStr || !trackerPath || !Number.isFinite(maxTurns) || maxTurns < 1) return
       const model = resolveModelRef(simulatorModelStr)
       if (!model) return
       const agentModel = agentModelStr ? resolveModelRef(agentModelStr) : undefined
+      const parsedFormatRetryCount = Number(formatRetryCountRaw)
+      const formatRetryCount =
+        Number.isFinite(parsedFormatRetryCount) && parsedFormatRetryCount >= 0
+          ? Math.floor(parsedFormatRetryCount)
+          : 1
       return {
         model,
         agentModel,
@@ -134,6 +140,7 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
         terminateCondition: {
           allPassed: allPassedRaw === true,
         },
+        formatRetryCount,
       }
     }
 
