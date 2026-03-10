@@ -10,6 +10,9 @@ export namespace Simulate {
     logSystemPrompt?: boolean
     trackerPath?: string
     firstMessage?: string
+    terminateCondition?: {
+      allPassed?: boolean
+    }
   }
 
   export type Status = "idle" | "generating" | "waiting" | "completed" | "cancelled" | "stopped"

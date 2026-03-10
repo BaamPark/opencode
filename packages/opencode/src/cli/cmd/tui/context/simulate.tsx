@@ -179,6 +179,12 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       })
     }
 
+    function isTrackerAllPassed(tracker: string) {
+      const checklistLines = tracker.split(/\r?\n/).filter((line) => /^\s*-\s*\[(?:\s|x|X)\]\s+/.test(line))
+      if (checklistLines.length === 0) return false
+      return checklistLines.every((line) => /^\s*-\s*\[(?:x|X)\]\s+/.test(line))
+    }
+
     async function runNextTurn() {
       if (!store.active || !store.config || !store.sessionID) return
       if (abortController?.signal.aborted) return
@@ -194,6 +200,11 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
 
       try {
         await ensureTrackerState()
+
+        if (store.config.terminateCondition?.allPassed === true && isTrackerAllPassed(trackerState)) {
+          complete("completed", "All tracker items are completed")
+          return
+        }
 
         if (seedFirstPromptTask && turn === 1) {
           const task = seedFirstPromptTask
@@ -228,6 +239,11 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           return
         }
         trackerState = parsed.tracker.trim()
+
+        if (store.config.terminateCondition?.allPassed === true && isTrackerAllPassed(trackerState)) {
+          complete("completed", "All tracker items are completed")
+          return
+        }
 
         if (!parsed.task || parsed.task.trim() === "") {
           complete("stopped", "Simulator generated empty task")

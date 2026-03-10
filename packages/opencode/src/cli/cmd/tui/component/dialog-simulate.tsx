@@ -118,6 +118,8 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
         data.tracker_path ?? data.trackerPath ?? data.tracker ?? data.external_context ?? data.externalContext
       const logSystemPromptRaw = data.log_system_prompt ?? data.logSystemPrompt
       const firstMessageRaw = data.first_message ?? data.firstMessage
+      const terminateConditionRaw = data.terminate_condition ?? data.terminateCondition
+      const allPassedRaw = terminateConditionRaw?.all_passed ?? terminateConditionRaw?.allPassed
       if (!simulatorModelStr || !trackerPath || !Number.isFinite(maxTurns) || maxTurns < 1) return
       const model = resolveModelRef(simulatorModelStr)
       if (!model) return
@@ -129,6 +131,9 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
         trackerPath: String(trackerPath),
         logSystemPrompt: logSystemPromptRaw === true,
         firstMessage: typeof firstMessageRaw === "string" ? firstMessageRaw : undefined,
+        terminateCondition: {
+          allPassed: allPassedRaw === true,
+        },
       }
     }
 
