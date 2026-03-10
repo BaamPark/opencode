@@ -2,10 +2,10 @@
     "simulator_model": "gpt-oss:20b",
     "agent_model": "qwen3-coder:30b",
     "max_turns": 20,
-    "external_context": "/docs/req_tracker_demo.md",
+    "external_context": "/docs/req_tracker.md",
     "log_system_prompt": false,
-    "first_message": "Develop a to-do list python application",
+    "first_message": "Develop a stock trading web application",
     "terminate_condition": {
-        "all_passed": true
+        "all_passed": false
     }
 }
