@@ -49,6 +49,8 @@ Output format:
 <full updated tracker markdown with checklist lines>
 \`\`\`
 <single user message to send to assistant>
+- In the tracker markdown, completed requirements MUST be marked as "- [x] requirement".
+- Keep each requirement text unchanged when marking completion; only toggle "[ ]" to "[x]".
 - The user message must be plain text after the md block.
 - The user message must sound like a nont-techincal customer and MUST NOT mention markdown, trackers, checkboxes, or internal formatting.
 - Vary sentence openings and phrasing naturally across turns.`

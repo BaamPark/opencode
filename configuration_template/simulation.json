@@ -3,7 +3,7 @@
     "agent_model": "qwen3-coder:30b",
     "max_turns": 20,
     "external_context": "/docs/req_tracker.md",
-    "log_system_prompt": false,
+    "log_system_prompt": true,
     "format_retry_count": 1,
     "first_message": "Develop a stock trading web application",
     "terminate_condition": {
