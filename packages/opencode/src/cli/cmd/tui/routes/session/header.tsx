@@ -3,6 +3,7 @@ import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
 import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
+import { useSimulate } from "@tui/context/simulate"
 import { SplitBorder } from "@tui/component/border"
 import type { AssistantMessage, Session } from "@opencode-ai/sdk/v2"
 import { useCommandDialog } from "@tui/component/dialog-command"
@@ -21,13 +22,17 @@ const Title = (props: { session: Accessor<Session> }) => {
 const ContextInfo = (props: {
   total: Accessor<string | undefined>
   current: Accessor<string | undefined>
+  simulatorCurrent: Accessor<string | undefined>
   cost: Accessor<string>
 }) => {
   const { theme } = useTheme()
   return (
     <Show when={props.total()}>
       <text fg={theme.textMuted} wrapMode="none" flexShrink={0}>
-        Session: {props.total()} tokens ({props.cost()}); Current: {props.current() ?? "0"}
+        agent_cumulative: {props.total()} | agent_current: {props.current() ?? "0"} {props.cost()}
+        <Show when={props.simulatorCurrent()}>
+          {" | "}sim_current: {props.simulatorCurrent()}
+        </Show>
       </text>
     </Show>
   )
@@ -36,6 +41,7 @@ const ContextInfo = (props: {
 export function Header() {
   const route = useRouteData("session")
   const sync = useSync()
+  const simulate = useSimulate()
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 
@@ -70,6 +76,14 @@ export function Header() {
     if (!last) return
     const total =
       last.tokens.input + last.tokens.output + last.tokens.reasoning + last.tokens.cache.read + last.tokens.cache.write
+    return total.toLocaleString()
+  })
+
+  const simulatorCurrentTokens = createMemo(() => {
+    if (!simulate.state.active) return
+    if (simulate.state.sessionID !== route.sessionID) return
+    const total = simulate.state.simulatorCurrentTokens
+    if (!total || total <= 0) return
     return total.toLocaleString()
   })
 
@@ -129,7 +143,12 @@ export function Header() {
               </box>
               <box flexGrow={1} flexShrink={1} />
               <box flexDirection="row" gap={1} flexShrink={0}>
-                <ContextInfo total={totalTokens} current={currentTokens} cost={cost} />
+                <ContextInfo
+                  total={totalTokens}
+                  current={currentTokens}
+                  simulatorCurrent={simulatorCurrentTokens}
+                  cost={cost}
+                />
               </box>
             </box>
           </Match>
@@ -137,7 +156,12 @@ export function Header() {
             <box flexDirection="row" justifyContent="space-between" gap={1}>
               <Title session={session} />
               <box flexDirection="row" gap={1} flexShrink={0}>
-                <ContextInfo total={totalTokens} current={currentTokens} cost={cost} />
+                <ContextInfo
+                  total={totalTokens}
+                  current={currentTokens}
+                  simulatorCurrent={simulatorCurrentTokens}
+                  cost={cost}
+                />
               </box>
             </box>
           </Match>

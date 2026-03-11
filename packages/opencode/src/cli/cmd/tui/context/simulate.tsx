@@ -19,6 +19,7 @@ export interface SimulationState {
   sessionID: string | null
   config: Simulate.Config | null
   currentTurn: number
+  simulatorCurrentTokens: number | null
   status: Simulate.Status
   stopReason: string | null
   error: string | null
@@ -39,6 +40,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       sessionID: null,
       config: null,
       currentTurn: 0,
+      simulatorCurrentTokens: null,
       status: "idle",
       stopReason: null,
       error: null,
@@ -59,6 +61,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         setStore("sessionID", null)
         setStore("config", null)
         setStore("currentTurn", 0)
+        setStore("simulatorCurrentTokens", null)
         setStore("status", "idle")
         setStore("stopReason", null)
         setStore("error", null)
@@ -88,6 +91,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         setStore("sessionID", sessionID)
         setStore("config", config)
         setStore("currentTurn", 0)
+        setStore("simulatorCurrentTokens", null)
         setStore("status", "generating")
         setStore("stopReason", null)
         setStore("error", null)
@@ -211,6 +215,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }
 
       setStore("currentTurn", turn)
+      setStore("simulatorCurrentTokens", null)
       setStore("status", "generating")
 
       try {
@@ -234,11 +239,12 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         const maxFormatRetry = Math.max(0, Math.floor(store.config.formatRetryCount ?? 1))
         let lastParsed: Simulate.ParsedResponse = { stopped: false }
         for (let attempt = 1; attempt <= maxFormatRetry + 1; attempt++) {
-          const { text, parsed } = await Instance.provide({
+          const { text, parsed, usage } = await Instance.provide({
             directory,
             init: InstanceBootstrap,
             fn: () => Simulate.generateTask(store.config!, simulatorContext, abortController!.signal, trackerState),
           })
+          if (usage?.total) setStore("simulatorCurrentTokens", usage.total)
           lastParsed = parsed
           if (!Simulate.isMissingTrackerBlock(parsed.reason)) break
           const record = [
@@ -461,6 +467,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }
       batch(() => {
         setStore("status", status)
+        setStore("simulatorCurrentTokens", null)
         setStore("stopReason", reason)
         setStore("active", false)
       })
@@ -475,6 +482,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       abortController?.abort()
       batch(() => {
         setStore("status", "cancelled")
+        setStore("simulatorCurrentTokens", null)
         setStore("active", false)
       })
       abortController = null

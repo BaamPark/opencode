@@ -2,6 +2,15 @@ import { streamText, type CoreMessage } from "ai"
 import { Provider } from "@/provider/provider"
 
 export namespace Simulate {
+  export interface TokenUsage {
+    input: number
+    output: number
+    reasoning: number
+    cacheRead: number
+    cacheWrite: number
+    total: number
+  }
+
   export interface Config {
     model: { providerID: string; modelID: string }
     agentModel?: { providerID: string; modelID: string }
@@ -98,6 +107,33 @@ Rules:
     return reason === "Missing tracker markdown block in simulator response"
   }
 
+  function toSafeNumber(value: unknown) {
+    const num = typeof value === "number" ? value : Number(value)
+    return Number.isFinite(num) ? num : 0
+  }
+
+  function pickNumber(raw: any, keys: string[]) {
+    for (const key of keys) {
+      if (raw?.[key] !== undefined && raw?.[key] !== null) {
+        return toSafeNumber(raw[key])
+      }
+    }
+    return 0
+  }
+
+  function normalizeUsage(raw: any): TokenUsage | undefined {
+    if (!raw || typeof raw !== "object") return
+    const input = pickNumber(raw, ["inputTokens", "promptTokens", "input", "prompt"])
+    const output = pickNumber(raw, ["outputTokens", "completionTokens", "output", "completion"])
+    const reasoning = pickNumber(raw, ["reasoningTokens", "reasoning"])
+    const cacheRead = pickNumber(raw, ["cachedInputTokens", "cacheRead"])
+    const cacheWrite = pickNumber(raw, ["cacheCreationInputTokens", "cacheWrite"])
+    const explicitTotal = pickNumber(raw, ["totalTokens", "total"])
+    const total = explicitTotal > 0 ? explicitTotal : input + output + reasoning + cacheRead + cacheWrite
+    if (total <= 0) return
+    return { input, output, reasoning, cacheRead, cacheWrite, total }
+  }
+
   function buildSystemPrompt(tracker: string) {
     return `${SIMULATOR_SYSTEM_PROMPT}
 
@@ -116,7 +152,7 @@ ${tracker}
     conversationHistory: CoreMessage[],
     abortSignal: AbortSignal,
     tracker: string,
-  ): Promise<{ text: string; parsed: ParsedResponse }> {
+  ): Promise<{ text: string; parsed: ParsedResponse; usage?: TokenUsage }> {
     const model = await Provider.getModel(config.model.providerID, config.model.modelID)
     if (!model) {
       throw new Error(`Model not found: ${config.model.providerID}/${config.model.modelID}`)
@@ -133,8 +169,12 @@ ${tracker}
 
     const text = await result.text
     const parsed = parseSimulatorResponse(text)
+    const directUsage = normalizeUsage((result as any).usage)
+    const resolvedUsage = directUsage ?? normalizeUsage(await Promise.resolve((result as any).usage))
+    const totalUsage = normalizeUsage(await Promise.resolve((result as any).totalUsage))
+    const usage = resolvedUsage ?? totalUsage
 
-    return { text, parsed }
+    return { text, parsed, usage }
   }
 
   export async function generateAnswer(
