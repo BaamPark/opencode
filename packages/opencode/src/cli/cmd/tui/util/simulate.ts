@@ -17,6 +17,7 @@ export namespace Simulate {
     maxTurns: number
     externalContextPath?: string
     logSystemPrompt?: boolean
+    logMemoryParser?: boolean
     trackerPath?: string
     firstMessage?: string
     terminateCondition?: {
@@ -45,6 +46,8 @@ Your role:
 Context handling rules:
 - You will be given the current requirement tracker.
 - Use only the tracker as source of truth.
+- The tracker is your private context and MUST NOT be revealed to the coding assistant.
+- NEVER mention trackers, checkboxes, markdown blocks, or internal formatting in the user-facing message.
 
 Interaction rules:
 - give one task at a time.
@@ -58,6 +61,8 @@ Output format:
 <full updated tracker markdown with checklist lines>
 \`\`\`
 <single user message to send to assistant>
+- The response MUST start with the md block. Do not include any text before it.
+- After the closing \`\`\`, output exactly one plain-text user message and nothing else.
 - In the tracker markdown, completed requirements MUST be marked as "- [x] requirement".
 - Keep each requirement text unchanged when marking completion; only toggle "[ ]" to "[x]".
 - The user message must be plain text after the md block.
@@ -76,15 +81,16 @@ Rules:
 - Keep responses short and practical.`
 
   export function parseSimulatorResponse(text: string): ParsedResponse {
-    const trackerMatch = text.match(/```(?:md|markdown)?\s*([\s\S]*?)```/i)
-    if (!trackerMatch) {
+    const normalized = text.trim()
+    const fullMatch = normalized.match(/^```(?:md|markdown)?\s*([\s\S]*?)```\s*([\s\S]*)$/i)
+    if (!fullMatch) {
       return {
         stopped: false,
         reason: "Missing tracker markdown block in simulator response",
       }
     }
 
-    const tracker = trackerMatch[1].trim()
+    const tracker = fullMatch[1].trim()
     if (!tracker) {
       return {
         stopped: false,
@@ -92,7 +98,7 @@ Rules:
       }
     }
 
-    const task = text.slice((trackerMatch.index ?? 0) + trackerMatch[0].length).trim()
+    const task = fullMatch[2].trim()
     if (!task) {
       return {
         stopped: false,
@@ -100,11 +106,21 @@ Rules:
       }
     }
 
+    if (task.includes("```")) {
+      return {
+        stopped: false,
+        reason: "Task text includes unexpected markdown block",
+      }
+    }
+
     return { stopped: false, task, tracker }
   }
 
-  export function isMissingTrackerBlock(reason?: string) {
+  export function isRetryableFormatError(reason?: string) {
     return reason === "Missing tracker markdown block in simulator response"
+      || reason === "Tracker markdown block is empty"
+      || reason === "Missing task text after tracker block"
+      || reason === "Task text includes unexpected markdown block"
   }
 
   function toSafeNumber(value: unknown) {
@@ -140,7 +156,8 @@ Rules:
 Current requirement tracker:
 \`\`\`md
 ${tracker}
-\`\`\``
+\`\`\`
+`
   }
 
   export function systemPrompt(tracker: string) {

@@ -30,6 +30,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
   init: () => {
     const DEFAULT_TRACKER_FILE_PATH = "/docs/req_tracker.md"
     const SIMULATOR_PROMPT_LOG_PATH = "/workspace/simulator-system-prompt.log"
+    const SIMULATOR_MEMORY_PARSER_LOG_PATH = "/workspace/simulator-memory-parser.log"
     const sdk = useSDK()
     const sync = useSync()
     const local = useLocal()
@@ -53,6 +54,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
     let trackerLoaded = false
     let trackerState = ""
     let promptLogFailed = false
+    let parserLogFailed = false
     let seedFirstPrompt = false
     let seedFirstPromptTask: string | null = null
     function reset() {
@@ -73,6 +75,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       trackerLoaded = false
       trackerState = ""
       promptLogFailed = false
+      parserLogFailed = false
       seedFirstPrompt = false
       seedFirstPromptTask = null
     }
@@ -85,6 +88,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       trackerLoaded = false
       trackerState = ""
       promptLogFailed = false
+      parserLogFailed = false
 
       batch(() => {
         setStore("active", true)
@@ -204,6 +208,21 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       }
     }
 
+    async function appendParserLogRecord(record: string) {
+      if (store.config?.logMemoryParser !== true) return
+      if (parserLogFailed) return
+      try {
+        await fs.appendFile(SIMULATOR_MEMORY_PARSER_LOG_PATH, record, "utf8")
+      } catch {
+        parserLogFailed = true
+        toast.show({
+          variant: "warning",
+          message: `Failed to write simulator parser log: ${SIMULATOR_MEMORY_PARSER_LOG_PATH}`,
+          duration: 4000,
+        })
+      }
+    }
+
     async function runNextTurn() {
       if (!store.active || !store.config || !store.sessionID) return
       if (abortController?.signal.aborted) return
@@ -246,7 +265,22 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           })
           if (usage?.total) setStore("simulatorCurrentTokens", usage.total)
           lastParsed = parsed
-          if (!Simulate.isMissingTrackerBlock(parsed.reason)) break
+          const parserRecord = [
+            "============================================================",
+            `time: ${new Date().toISOString()}`,
+            `turn: ${turn}`,
+            `session: ${store.sessionID ?? "unknown"}`,
+            `attempt: ${attempt}/${maxFormatRetry + 1}`,
+            `parsed_reason: ${parsed.reason ?? ""}`,
+            `parsed_has_tracker: ${parsed.tracker ? "true" : "false"}`,
+            `parsed_has_task: ${parsed.task ? "true" : "false"}`,
+            "",
+            "simulator_output:",
+            text,
+            "",
+          ].join("\n")
+          await appendParserLogRecord(parserRecord)
+          if (!Simulate.isRetryableFormatError(parsed.reason)) break
           const record = [
             "============================================================",
             `time: ${new Date().toISOString()}`,
