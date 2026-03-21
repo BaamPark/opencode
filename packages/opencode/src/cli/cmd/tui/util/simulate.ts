@@ -15,6 +15,8 @@ export namespace Simulate {
     model: { providerID: string; modelID: string }
     agentModel?: { providerID: string; modelID: string }
     maxTurns: number
+    temperature?: number
+    seed?: number
     externalContextPath?: string
     logSystemPrompt?: boolean
     logMemoryParser?: boolean
@@ -181,6 +183,8 @@ ${tracker}
       model: language,
       messages: conversationHistory,
       system: buildSystemPrompt(tracker),
+      temperature: config.temperature,
+      seed: config.seed,
       abortSignal,
     })
 
@@ -223,6 +227,8 @@ ${tracker}
       model: language,
       messages,
       system: SIMULATOR_ANSWER_PROMPT,
+      temperature: config.temperature,
+      seed: config.seed,
       abortSignal,
     })
 

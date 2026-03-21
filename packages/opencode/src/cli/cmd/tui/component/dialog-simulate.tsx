@@ -122,11 +122,19 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
       const terminateConditionRaw = data.terminate_condition ?? data.terminateCondition
       const allPassedRaw = terminateConditionRaw?.all_passed ?? terminateConditionRaw?.allPassed
       const formatRetryCountRaw = data.format_retry_count ?? data.formatRetryCount
+      const optionsRaw = data.options
+      const temperatureRaw = data.temperature ?? data.simulator_temperature ?? optionsRaw?.temperature
+      const seedRaw = data.seed ?? data.simulator_seed ?? optionsRaw?.seed
       if (!simulatorModelStr || !trackerPath || !Number.isFinite(maxTurns) || maxTurns < 1) return
       const model = resolveModelRef(simulatorModelStr)
       if (!model) return
       const agentModel = agentModelStr ? resolveModelRef(agentModelStr) : undefined
       const parsedFormatRetryCount = Number(formatRetryCountRaw)
+      const parsedTemperature = Number(temperatureRaw)
+      const temperature =
+        Number.isFinite(parsedTemperature) && parsedTemperature >= 0 ? parsedTemperature : undefined
+      const parsedSeed = Number(seedRaw)
+      const seed = Number.isFinite(parsedSeed) ? Math.floor(parsedSeed) : undefined
       const formatRetryCount =
         Number.isFinite(parsedFormatRetryCount) && parsedFormatRetryCount >= 0
           ? Math.floor(parsedFormatRetryCount)
@@ -135,6 +143,8 @@ export function DialogSimulate(props: { sessionID: string; initialPrompt?: strin
         model,
         agentModel,
         maxTurns,
+        temperature,
+        seed,
         trackerPath: String(trackerPath),
         logSystemPrompt: logSystemPromptRaw === true,
         logMemoryParser: logMemoryParserRaw === true,

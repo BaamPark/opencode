@@ -2,6 +2,8 @@
     "simulator_model": "gpt-oss:20b",
     "agent_model": "qwen3-coder:30b",
     "max_turns": 30,
+    "temperature": 0.8,
+    "seed": 42,
     "external_context": "/docs/req_tracker.md",
     "log_system_prompt": true,
     "log_memory_parser": true,
