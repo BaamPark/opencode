@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  // "model": "openai/gpt-5-mini-2025-08-07",
   "provider": {
     "openai": {
       "npm": "@ai-sdk/openai",
@@ -11,7 +10,7 @@
         }
       },
       "options": {
-        "apiKey": "your_key"
+        "apiKey": ""
       }
     },
     "anthropic": {
@@ -23,7 +22,7 @@
         }
       },
       "options": {
-        "apiKey": "your_key"
+        "apiKey": ""
       }
     },
     "ollama": {
@@ -47,5 +46,37 @@
       "/docs/**": "deny"
     },
     "bash": "allow"
+  },
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@playwright/mcp@0.0.68"
+      ],
+      "environment": {
+        "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright"
+      },
+      "enabled": true
+    }
+  },
+"agent": {
+    "build": {
+      "mode": "primary",
+      "description": "General SWE agent for development tasks",
+      "tools": {
+        "playwright_*": false
+      }
+    },
+    "browser-qa": {
+      "mode": "primary",
+      "description": "Specialized agent for evaluating functional requirements via browser",
+      "prompt": "You are a QA agent. Your job is to evaluate functional requirements of web applications by browsing and interacting with them. Use Playwright tools to navigate, fill forms, click elements, and verify behavior. Always run browser actions in no-sandbox mode.",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    }
   }
 }
