@@ -57,7 +57,7 @@ OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/test_new:/workspace \
+    -v /home/beomseok/sandbox/test_new2:/workspace \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
     -v ./external:/docs:ro \
@@ -67,6 +67,22 @@ OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
     -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
     opencode
   ```
+
+When docker default user is not root user.
+```bash
+docker run -it --rm \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/tmp/opencode-home \
+    -v /home/beomseok/sandbox/test_new3:/workspace \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v ./configuration_template:/.opencode \
+    -v ./external:/docs:ro \
+    -w /workspace \
+    --add-host=host.docker.internal:host-gateway \
+    -e SIMULATION_CONFIG_JSON="$(jq -c . configuration_template/simulation.json)" \
+    -e OLLAMA_HOST="http://host.docker.internal:11434/v1" \
+    opencode
+```
 
 ### 5. Troubleshoot connectivity
 - Verify the sandbox can reach Ollama:

@@ -193,6 +193,13 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       return checklistLines.every((line) => /^\s*-\s*\[(?:x|X)\]\s+/.test(line))
     }
 
+    function stripYamlFrontmatter(markdown: string) {
+      const trimmedStart = markdown.replace(/^\uFEFF/, "")
+      const frontmatterMatch = trimmedStart.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/)
+      if (!frontmatterMatch) return trimmedStart.trim()
+      return trimmedStart.slice(frontmatterMatch[0].length).trim()
+    }
+
     async function appendSimulatorLogRecord(record: string) {
       if (store.config?.logSystemPrompt !== true) return
       if (promptLogFailed) return
@@ -352,7 +359,8 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
           : path.join(baseDir, configured)
         : DEFAULT_TRACKER_FILE_PATH
       try {
-        trackerState = (await fs.readFile(trackerPath, "utf8")).trim()
+        const trackerRaw = await fs.readFile(trackerPath, "utf8")
+        trackerState = stripYamlFrontmatter(trackerRaw)
       } catch {
         throw new Error(`Tracker file not found: ${trackerPath}`)
       }
