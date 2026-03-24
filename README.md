@@ -57,7 +57,7 @@ OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/qwen3_1:/workspace \
+    -v /home/beomseok/sandbox/test_new:/workspace \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
     -v ./external:/docs:ro \
@@ -85,6 +85,7 @@ OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
   sudo ufw allow from 172.17.0.0/16 to any port 11434
   ```
 
+How to run 
 
 ## FAQ
 ### 1. How the llm-as-a-user reacts in response to the agent's question?

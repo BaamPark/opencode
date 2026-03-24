@@ -50,13 +50,7 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": [
-        "npx",
-        "@playwright/mcp@0.0.68"
-      ],
-      "environment": {
-        "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright"
-      },
+      "command": ["playwright-mcp"],
       "enabled": true
     }
   },
@@ -68,14 +62,14 @@
         "playwright_*": false
       }
     },
-    "browser-qa": {
+    "test": {
       "mode": "primary",
       "description": "Specialized agent for evaluating functional requirements via browser",
       "prompt": "You are a QA agent. Your job is to evaluate functional requirements of web applications by browsing and interacting with them. Use Playwright tools to navigate, fill forms, click elements, and verify behavior. Always run browser actions in no-sandbox mode.",
       "tools": {
         "write": false,
         "edit": false,
-        "bash": false
+        "bash": true
       }
     }
   }
