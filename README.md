@@ -57,10 +57,10 @@ OLLAMA_CONTEXT_LENGTH=200000 OLLAMA_HOST=0.0.0.0 ollama serve
 ### 4. Run OpenCode with host access to Ollama:
 ```bash
   docker run -it --rm \
-    -v /home/beomseok/sandbox/test_new2:/workspace \
+    -v /home/beomseok/sandbox/e2edev_02:/workspace \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v ./configuration_template:/.opencode \
-    -v ./external:/docs:ro \
+    -v ./docs:/docs:ro \
     -w /workspace \
     --add-host=host.docker.internal:host-gateway \
     -e SIMULATION_CONFIG_JSON="$(jq -c . configuration_template/simulation.json)" \

@@ -4,11 +4,10 @@
     "max_turns": 30,
     "temperature": 0.8,
     "seed": 42,
-    "external_context": "/docs/new_tracker.md",
+    "external_context": "/docs/E2EDev_sampled/E2ESD_Bench_02/requirement.md",
     "log_system_prompt": true,
     "log_memory_parser": true,
     "format_retry_count": 1,
-    "first_message": "Develop web-based snake game application",
     "terminate_condition": {
         "all_passed": false
     }

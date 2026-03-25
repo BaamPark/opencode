@@ -1,3 +1,0 @@
-- [ ] Add task: Let the user add a task item.
-- [ ] View tasks: Show all current task items.
-- [ ] Mark complete: Let the user mark a task as completed.

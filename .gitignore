@@ -25,6 +25,7 @@ target
 # Local dev files
 opencode-dev
 logs/
+docs/
 *.bun-build
 !configuration_template/opencode.json
 *.pyc

@@ -12,6 +12,7 @@ import { Instance } from "@/project/instance"
 import { InstanceBootstrap } from "@/project/bootstrap"
 import fs from "fs/promises"
 import path from "path"
+import matter from "gray-matter"
 import { formatTranscript } from "../util/transcript"
 
 export interface SimulationState {
@@ -104,7 +105,7 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       // Build context from existing session messages
       const messages = sync.data.message[sessionID] || []
       seedFirstPrompt = messages.length === 0
-      seedFirstPromptTask = initialPrompt?.trim() || config.firstMessage?.trim() || null
+      seedFirstPromptTask = initialPrompt?.trim() || null
       for (const msg of messages) {
         const parts = sync.data.part[msg.id] || []
         const textParts = parts.filter((p: { type: string }) => p.type === "text")
@@ -198,6 +199,20 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
       const frontmatterMatch = trimmedStart.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/)
       if (!frontmatterMatch) return trimmedStart.trim()
       return trimmedStart.slice(frontmatterMatch[0].length).trim()
+    }
+
+
+    function parseTrackerDocument(markdown: string) {
+      const normalized = markdown.replace(/^\uFEFF/, "")
+      try {
+        const parsed = matter(normalized)
+        const tracker = String(parsed.content ?? "").trim()
+        const promptRaw = parsed.data?.prompt
+        const prompt = typeof promptRaw === "string" ? promptRaw.trim() : undefined
+        return { tracker, prompt }
+      } catch {
+        return { tracker: stripYamlFrontmatter(normalized), prompt: undefined }
+      }
     }
 
     async function appendSimulatorLogRecord(record: string) {
@@ -360,7 +375,11 @@ export const { use: useSimulate, provider: SimulateProvider } = createSimpleCont
         : DEFAULT_TRACKER_FILE_PATH
       try {
         const trackerRaw = await fs.readFile(trackerPath, "utf8")
-        trackerState = stripYamlFrontmatter(trackerRaw)
+        const parsedTracker = parseTrackerDocument(trackerRaw)
+        trackerState = parsedTracker.tracker
+        if (seedFirstPrompt && !seedFirstPromptTask) {
+          seedFirstPromptTask = parsedTracker.prompt || store.config?.firstMessage?.trim() || null
+        }
       } catch {
         throw new Error(`Tracker file not found: ${trackerPath}`)
       }
