@@ -1,7 +1,7 @@
 {
     "simulator_model": "gpt-oss:20b",
     "agent_model": "qwen3.5:27b",
-    "max_turns": 30,
+    "max_turns": 20,
     "temperature": 0.8,
     "seed": 42,
     "external_context": "/docs/E2EDev_sampled/E2ESD_Bench_02/requirement.md",
@@ -9,6 +9,6 @@
     "log_memory_parser": true,
     "format_retry_count": 1,
     "terminate_condition": {
-        "all_passed": false
+        "all_passed": true
     }
 }
