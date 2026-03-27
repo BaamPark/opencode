@@ -53,7 +53,18 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["playwright-mcp"],
+      "command": [
+        "npx",
+        "@playwright/mcp@0.0.68",
+        "--no-sandbox",
+        "--headless"
+      ],
+      "environment": {
+        "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
+        "CRASHPAD_HANDLER_PATH": "/dev/null",
+        "CHROME_BREAKPAD_ENABLED": "0",
+        "GOOGLE_BREAKPAD": "0"
+      },
       "enabled": true
     }
   },

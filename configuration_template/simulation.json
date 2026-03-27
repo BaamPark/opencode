@@ -1,10 +1,10 @@
 {
     "simulator_model": "gpt-oss:20b",
-    "agent_model": "qwen3.5:27b",
-    "max_turns": 20,
+    "agent_model": "qwen3-coder:30b",
+    "max_turns": 30,
     "temperature": 0.8,
     "seed": 42,
-    "external_context": "/docs/E2EDev_sampled/E2ESD_Bench_02/requirement.md",
+    "external_context": "/docs/opendental.md",
     "log_system_prompt": true,
     "log_memory_parser": true,
     "format_retry_count": 1,
